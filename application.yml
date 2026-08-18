@@ -1,0 +1,93 @@
+# =============================================================================
+# Concord — configuracao base (comum a todos os perfis)
+# Valores sensiveis vem SEMPRE de variaveis de ambiente. Nenhum segredo aqui.
+# =============================================================================
+
+spring:
+  application:
+    name: concord
+
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+    hikari:
+      # Poucos usuarios simultaneos; um pool grande so desperdicia conexoes.
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 10000
+
+  jpa:
+    hibernate:
+      # O schema pertence ao Flyway. O Hibernate apenas confere se o mapeamento
+      # bate com o banco — nunca cria nem altera tabela.
+      ddl-auto: validate
+    # Evita que a sessao do Hibernate fique aberta durante a renderizacao da
+    # resposta, o que esconde consultas lentas e causa lazy loading acidental.
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+
+  threads:
+    virtual:
+      # Java 21: threads virtuais para as requisicoes. Util quando houver
+      # muitas conexoes WebSocket ociosas a partir da Fase 4.
+      enabled: true
+
+server:
+  port: 8080
+  # Todo o backend vive sob /api. O Caddy repassa o caminho inteiro, sem
+  # reescrita — reescrever prefixo quebra redirects e cookies de path.
+  servlet:
+    context-path: /api
+    session:
+      cookie:
+        name: ${SESSION_COOKIE_NAME:concord_session}
+        http-only: true
+        same-site: lax
+        secure: ${SESSION_COOKIE_SECURE:false}
+  # Confia nos cabecalhos X-Forwarded-* enviados pelo Caddy, para que o IP do
+  # cliente e o esquema (http/https) cheguem corretos aos logs e ao rate limit.
+  forward-headers-strategy: framework
+  error:
+    include-stacktrace: never
+    include-message: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # Somente health e info sao expostos. Nada de /env, /beans ou /heapdump.
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  health:
+    db:
+      enabled: true
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: Concord
+    version: 0.1.0
+    phase: 1
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"

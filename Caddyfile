@@ -1,0 +1,40 @@
+# =============================================================================
+# Concord — Caddy (desenvolvimento)
+#
+# Por que existe um proxy já em dev:
+# frontend e backend precisam compartilhar a MESMA ORIGEM. É isso que permite
+# o cookie de sessão com SameSite=Lax funcionar igual em dev e em produção
+# (ADR-02). Sem isso, o dev roda num mundo e a produção em outro.
+#
+# http://localhost é considerado "secure context" pelos navegadores, então
+# getUserMedia() e getDisplayMedia() funcionam sem TLS em desenvolvimento.
+# =============================================================================
+
+{
+	admin off
+	auto_https off
+}
+
+:80 {
+	encode zstd gzip
+
+	# Backend Spring Boot. O context-path da aplicação já é /api, então o
+	# caminho é repassado inteiro — sem strip_prefix, que quebraria redirects.
+	handle /api/* {
+		reverse_proxy backend:8080 {
+			header_up X-Forwarded-Proto {scheme}
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	# Frontend Next.js. O catch-all cobre também o WebSocket do hot reload
+	# (/_next/webpack-hmr); o Caddy faz o upgrade automaticamente.
+	handle {
+		reverse_proxy frontend:3000
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}
