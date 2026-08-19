@@ -1,9 +1,12 @@
 # =============================================================================
 # Concord — ambiente de DESENVOLVIMENTO
 #
-#   cp .env.example .env
-#   docker compose up -d
+#   docker compose up -d --build
 #   → http://localhost
+#
+# PostgreSQL:
+#   Host/Windows: localhost:5433
+#   Docker/rede interna: postgres:5432
 #
 # A composição de produção (TLS real, coturn, imagens compiladas) entra na
 # Fase 9, em docker-compose.prod.yml.
@@ -12,47 +15,80 @@
 name: concord
 
 services:
+
+  # ===========================================================================
+  # PostgreSQL
+  # ===========================================================================
   postgres:
     image: postgres:16-alpine
     container_name: concord-postgres
     restart: unless-stopped
+
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      # Melhora o desempenho de checksum em dev sem afetar durabilidade real.
       POSTGRES_INITDB_ARGS: "--data-checksums"
+
     ports:
-      # Publicado apenas no loopback, para conectar um DBeaver/psql local.
-      # Em produção esta linha NÃO existe: o banco só fala com a rede interna.
-      - "127.0.0.1:5432:5432"
+      # Porta no Windows: 5433
+      # Porta dentro do container: 5432
+      #
+      # O backend NÃO usa localhost:5433.
+      # Ele acessa: postgres:5432
+      - "127.0.0.1:5433:5432"
+
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
+        ]
       interval: 5s
       timeout: 5s
       retries: 10
-    networks: [concord]
 
+    networks:
+      - concord
+
+
+  # ===========================================================================
+  # Backend — Spring Boot
+  # ===========================================================================
   backend:
     build:
       context: ./backend
       target: dev
+
     container_name: concord-backend
     restart: unless-stopped
-    env_file: .env
+
+    env_file:
+      - .env
+
     environment:
       SPRING_PROFILES_ACTIVE: dev
+
+      # PostgreSQL pela rede interna do Docker.
       DATABASE_URL: ${DATABASE_URL}
+
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
       APP_PUBLIC_URL: ${APP_PUBLIC_URL}
+
       SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME}
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE}
+
       REGISTRATION_OPEN: ${REGISTRATION_OPEN}
       UNVERIFIED_ACCOUNT_TTL: ${UNVERIFIED_ACCOUNT_TTL}
+
       CONCORD_BOOTSTRAP_ADMIN_EMAIL: ${CONCORD_BOOTSTRAP_ADMIN_EMAIL}
+
+      # SMTP / Mailpit
       SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT}
       SMTP_USERNAME: ${SMTP_USERNAME}
@@ -60,106 +96,177 @@ services:
       SMTP_AUTH: ${SMTP_AUTH}
       SMTP_STARTTLS: ${SMTP_STARTTLS}
       MAIL_FROM: ${MAIL_FROM}
+
+      # WebRTC
       TURN_ENABLED: ${TURN_ENABLED}
       TURN_STUN_URL: ${TURN_STUN_URL}
       TURN_URLS: ${TURN_URLS}
       TURN_SECRET: ${TURN_SECRET}
+
+      # Documentos legais
       LEGAL_TERMS_VERSION: ${LEGAL_TERMS_VERSION}
       LEGAL_PRIVACY_VERSION: ${LEGAL_PRIVACY_VERSION}
+
+      # Webhook
       EMAIL_WEBHOOK_SECRET: ${EMAIL_WEBHOOK_SECRET}
+
     volumes:
-      # Hot reload: o DevTools reinicia a aplicação quando as classes mudam.
+      # Hot reload do backend.
       - ./backend/src:/build/src
+
+      # Permite detectar alterações no pom.xml.
       - ./backend/pom.xml:/build/pom.xml
-      # Cache do Maven entre rebuilds — sem isso cada build baixa o mundo.
+
+      # Cache do Maven entre rebuilds.
       - maven_repo:/root/.m2
+
     depends_on:
       postgres:
         condition: service_healthy
+
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8080/api/actuator/health"]
+      test:
+        [
+          "CMD",
+          "curl",
+          "-fsS",
+          "http://localhost:8080/api/actuator/health"
+        ]
       interval: 10s
       timeout: 5s
       retries: 12
       start_period: 90s
-    networks: [concord]
 
+    networks:
+      - concord
+
+
+  # ===========================================================================
+  # Frontend — Next.js
+  # ===========================================================================
   frontend:
     build:
       context: ./frontend
       target: dev
+
     container_name: concord-frontend
     restart: unless-stopped
+
     environment:
       NODE_ENV: development
+
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
       NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL}
-      # Necessário para o file watcher enxergar mudanças em volumes montados
-      # no Docker Desktop (macOS/Windows).
+
+      # Necessário para file watcher no Docker Desktop / Windows.
       WATCHPACK_POLLING: "true"
+
     volumes:
       - ./frontend:/app
-      # Volumes anônimos protegem node_modules e .next do bind mount do host.
-      - /app/node_modules
-      - /app/.next
-    networks: [concord]
 
+      # Protege node_modules do bind mount.
+      - /app/node_modules
+
+      # Protege o .next do bind mount.
+      - /app/.next
+
+    networks:
+      - concord
+
+
+  # ===========================================================================
+  # Mailpit — e-mails de desenvolvimento
+  # ===========================================================================
   mailpit:
-    # Captura os e-mails de verificação e reset em dev. Nada sai para a
-    # internet; a caixa de entrada fica em http://localhost:8025
     image: axllent/mailpit:latest
     container_name: concord-mailpit
     restart: unless-stopped
-    environment:
-      MP_SMTP_AUTH_ACCEPT_ANY: 1
-      MP_SMTP_AUTH_ALLOW_INSECURE: 1
-    ports:
-      - "127.0.0.1:8025:8025"
-    networks: [concord]
 
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+
+    ports:
+      # Interface web:
+      # http://localhost:8025
+      - "127.0.0.1:8025:8025"
+
+    networks:
+      - concord
+
+
+  # ===========================================================================
+  # Caddy — proxy reverso
+  # ===========================================================================
   caddy:
     image: caddy:2-alpine
     container_name: concord-caddy
     restart: unless-stopped
+
     ports:
+      # Concord:
+      # http://localhost
       - "80:80"
+
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+
     depends_on:
       - backend
       - frontend
-    networks: [concord]
 
-  # --- TURN -----------------------------------------------------------------
-  # Retransmite midia quando os pares nao conseguem falar direto (NAT simetrico,
-  # redes corporativas). Em rede local o STUN basta e este servico fica ocioso.
+    networks:
+      - concord
+
+
+  # ===========================================================================
+  # TURN / Coturn
   #
-  # network_mode: host e obrigatorio, nao preferencia: o TURN aloca uma faixa
-  # larga de portas UDP, e publicar milhares de portas pelo bridge do Docker e
-  # lento e pouco confiavel. A contrapartida e que o container ignora a rede
-  # 'concord' e enxerga a interface do host diretamente.
+  # Não é iniciado normalmente.
+  #
+  # Para habilitar:
+  #
+  #   docker compose --profile turn up -d
+  #
+  # Em desenvolvimento, TURN permanece desligado e o STUN é suficiente
+  # para a maioria dos testes locais.
+  # ===========================================================================
   coturn:
     image: coturn/coturn:4.6-alpine
     container_name: concord-coturn
     restart: unless-stopped
+
     network_mode: host
+
     volumes:
       - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+
     command: >
       -c /etc/coturn/turnserver.conf
       --static-auth-secret=${TURN_SECRET}
       --realm=${TURN_REALM}
       --external-ip=${TURN_EXTERNAL_IP}
-    profiles: ["turn"]
 
+    profiles:
+      - turn
+
+
+# =============================================================================
+# Volumes
+# =============================================================================
 
 volumes:
   postgres_data:
   maven_repo:
   caddy_data:
   caddy_config:
+
+
+# =============================================================================
+# Rede
+# =============================================================================
 
 networks:
   concord:

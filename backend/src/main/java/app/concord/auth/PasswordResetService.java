@@ -5,6 +5,7 @@ import app.concord.audit.AuditOutcome;
 import app.concord.audit.AuditService;
 import app.concord.common.exception.ApiException;
 import app.concord.common.exception.ErrorCode;
+import app.concord.common.text.EmailNormalizer;
 import app.concord.email.EmailService;
 import app.concord.token.ActionTokenService;
 import app.concord.token.ActionTokenType;
@@ -52,7 +53,7 @@ public class PasswordResetService {
 
     @Transactional
     public void requestReset(String rawEmail) {
-        String email = RegistrationService.normalizeEmail(rawEmail);
+        String email = EmailNormalizer.normalize(rawEmail);
         userRepository.findByEmailIgnoreCase(email)
                 .filter(user -> user.getStatus() == UserStatus.ACTIVE)
                 .ifPresent(user -> {

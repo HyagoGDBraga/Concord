@@ -6,6 +6,7 @@ import app.concord.audit.AuditOutcome;
 import app.concord.audit.AuditService;
 import app.concord.common.exception.ApiException;
 import app.concord.common.exception.ErrorCode;
+import app.concord.common.text.EmailNormalizer;
 import app.concord.config.AppProperties;
 import app.concord.email.EmailService;
 import app.concord.legal.ConsentService;
@@ -23,7 +24,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -94,7 +94,7 @@ public class RegistrationService {
         }
 
         String username = request.username().trim();
-        String email = normalizeEmail(request.email());
+        String email = EmailNormalizer.normalize(request.email());
 
         passwordPolicy.validate(request.password(), username, email);
 
@@ -157,7 +157,7 @@ public class RegistrationService {
      */
     @Transactional
     public void resendVerification(String rawEmail) {
-        String email = normalizeEmail(rawEmail);
+        String email = EmailNormalizer.normalize(rawEmail);
         userRepository.findByEmailIgnoreCase(email)
                 .filter(user -> user.getStatus() == UserStatus.PENDING_VERIFICATION)
                 .ifPresent(user -> {
@@ -176,9 +176,5 @@ public class RegistrationService {
             return false;
         }
         return !userRepository.existsByUsernameIgnoreCase(username.trim());
-    }
-
-    static String normalizeEmail(String email) {
-        return email == null ? null : email.trim().toLowerCase(Locale.ROOT);
     }
 }

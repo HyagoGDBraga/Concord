@@ -36,8 +36,15 @@ class IceServerServiceTest {
 
         assertThat(config.toString()).doesNotContain(SECRET);
         for (IceDtos.IceServer server : config.iceServers()) {
-            assertThat(server.username()).doesNotContain(SECRET);
-            assertThat(server.credential()).doesNotContain(SECRET);
+            // username e credential sao nulos no STUN, que e anonimo.
+            // O que se afirma aqui e "nenhum campo contem o segredo" — e um
+            // campo nulo satisfaz isso trivialmente.
+            if (server.username() != null) {
+                assertThat(server.username()).doesNotContain(SECRET);
+            }
+            if (server.credential() != null) {
+                assertThat(server.credential()).doesNotContain(SECRET);
+            }
         }
     }
 
@@ -120,6 +127,10 @@ class IceServerServiceTest {
                         "stun:stun.exemplo.test:3478",
                         List.of("turn:turn.exemplo.test:3478?transport=udp"),
                         SECRET,
-                        Duration.ofHours(1)));
+                        Duration.ofHours(1)),
+                // Acrescentados na Fase 7. Irrelevantes para este teste, mas o
+                // construtor canonico do record exige todos.
+                new AppProperties.Legal("2026-01", "2026-01"),
+                new AppProperties.Webhook(""));
     }
 }

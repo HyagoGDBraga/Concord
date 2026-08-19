@@ -23,7 +23,13 @@ COPY . .
 EXPOSE 8080
 # O DevTools observa /build/target/classes; o spring-boot:run recompila quando
 # os fontes montados por volume mudam.
-CMD ["mvn", "-B", "spring-boot:run", "-Dspring-boot.run.profiles=dev"]
+#
+# -Dmaven.test.skip pula a COMPILACAO dos testes, nao apenas a execucao.
+# Sem isso, o spring-boot:run dispara a fase test-compile e um teste que nao
+# compila impede a aplicacao de subir — o container entra em loop de restart
+# por um problema que nao e da aplicacao. Os testes rodam explicitamente:
+#     docker compose exec backend mvn test
+CMD ["mvn", "-B", "spring-boot:run", "-Dspring-boot.run.profiles=dev", "-Dmaven.test.skip=true"]
 
 # --- build de producao -------------------------------------------------------
 FROM deps AS builder

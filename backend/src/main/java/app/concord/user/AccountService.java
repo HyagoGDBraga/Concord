@@ -4,10 +4,10 @@ import app.concord.audit.AuditAction;
 import app.concord.audit.AuditOutcome;
 import app.concord.audit.AuditService;
 import app.concord.auth.PasswordPolicy;
-import app.concord.auth.RegistrationService;
 import app.concord.auth.SessionService;
 import app.concord.common.exception.ApiException;
 import app.concord.common.exception.ErrorCode;
+import app.concord.common.text.EmailNormalizer;
 import app.concord.email.EmailService;
 import app.concord.privacy.AccountDeletionService;
 import app.concord.token.ActionTokenService;
@@ -96,7 +96,7 @@ public class AccountService {
     public void requestEmailChange(User user, UserDtos.ChangeEmailRequest request) {
         requireCurrentPassword(user, request.currentPassword(), AuditAction.EMAIL_CHANGE_REQUESTED);
 
-        String newEmail = RegistrationService.normalizeEmail(request.newEmail());
+        String newEmail = EmailNormalizer.normalize(request.newEmail());
         if (newEmail.equalsIgnoreCase(user.getEmail())) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED,
                     "O novo e-mail é igual ao atual");
