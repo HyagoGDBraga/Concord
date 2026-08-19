@@ -5,7 +5,7 @@
 #           deps -> builder -> runtime  (producao, JRE enxuta)
 # =============================================================================
 
-FROM maven:3.9-eclipse-temurin-21 AS deps
+FROM maven:3-eclipse-temurin-24 AS deps
 WORKDIR /build
 # Baixa as dependencias em uma camada propria: mudanca no codigo-fonte nao
 # invalida o cache do Maven.
