@@ -116,6 +116,16 @@ public class SecurityConfig {
         // do cookie e o devolve no header, então o XOR só quebraria a comparação.
         csrfHandler.setCsrfRequestAttributeName(null);
 
+        CookieCsrfTokenRepository csrfRepository = CookieCsrfTokenRepository.withHttpOnlyFalse();
+        // Path "/" explícito. Sem isto, o cookie herda o context-path da
+        // aplicação e é gravado com Path=/api — invisível para o JavaScript da
+        // página, que roda em "/". O cliente nunca conseguiria ler o token, e
+        // toda mutação seria recusada com 403.
+        //
+        // O cookie de sessão não sofre disso porque tem o path definido em
+        // server.servlet.session.cookie.path.
+        csrfRepository.setCookieCustomizer(cookie -> cookie.path("/"));
+
         http
             .securityContext(context -> context
                     .securityContextRepository(securityContextRepository))
@@ -124,7 +134,7 @@ public class SecurityConfig {
                     .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
 
             .csrf(csrf -> csrf
-                    .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                    .csrfTokenRepository(csrfRepository)
                     .csrfTokenRequestHandler(csrfHandler))
 
             .authorizeHttpRequests(auth -> auth

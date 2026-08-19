@@ -1,6 +1,21 @@
 import type { NextConfig } from "next";
 
 /**
+ * O Next em modo de desenvolvimento usa `eval` para source maps e para o Fast
+ * Refresh. Sem 'unsafe-eval', o bundle do cliente NAO EXECUTA: a pagina exibe o
+ * HTML renderizado no servidor e nunca hidrata — sem redirecionamento, sem
+ * chamada de API, sem interatividade. Uma foto estatica.
+ *
+ * Em producao o Next nao usa eval, entao a permissao fica de fora e o CSP
+ * permanece restritivo onde importa.
+ */
+const isDev = process.env.NODE_ENV === "development";
+
+const scriptSrc = isDev
+  ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+  : "script-src 'self' 'unsafe-inline'";
+
+/**
  * Cabecalhos de seguranca da aplicacao.
  *
  * O CSP do backend cobre a API, que so devolve JSON. Este aqui e o que importa
@@ -12,17 +27,17 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      // 'unsafe-inline' em script-src e uma concessao conhecida: o Next injeta
-      // o payload de hidratacao inline. Eliminar exige nonce por requisicao,
-      // que por sua vez exige renderizacao dinamica em todas as paginas.
-      // Registrado como divida; o ganho de fechar isso e real e o custo tambem.
-      "script-src 'self' 'unsafe-inline'",
+      // 'unsafe-inline' e uma concessao conhecida: o Next injeta o payload de
+      // hidratacao inline. Eliminar exige nonce por requisicao, que por sua vez
+      // exige renderizacao dinamica em todas as paginas. Registrado como divida.
+      scriptSrc,
       // O Next injeta estilos inline para otimizacao de fonte e para o CSS
       // critico. Sem 'unsafe-inline' aqui, a pagina renderiza sem estilo.
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob:",
       "font-src 'self' data:",
       // 'self' cobre a API na mesma origem; ws e wss cobrem o WebSocket.
+      // ws:/wss: cobrem o STOMP e tambem o socket de Fast Refresh do Next.
       "connect-src 'self' ws: wss:",
       // blob: e necessario para os fluxos de midia do WebRTC nos elementos
       // <video> e <audio>.
@@ -34,7 +49,10 @@ const securityHeaders = [
       // defesa contra clickjacking, que num app de chamadas significaria
       // enganar alguem para clicar em "atender".
       "frame-ancestors 'none'",
-      "upgrade-insecure-requests",
+      // Forca o navegador a trocar http:// por https:// em qualquer
+      // sub-recurso. Em producao e o certo; em desenvolvimento quebraria
+      // http://localhost, que nao tem TLS.
+      ...(isDev ? [] : ["upgrade-insecure-requests"]),
     ].join("; "),
   },
   { key: "X-Content-Type-Options", value: "nosniff" },
