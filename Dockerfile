@@ -32,7 +32,7 @@ COPY src ./src
 RUN mvn -B clean package -DskipTests
 
 # --- runtime de producao -----------------------------------------------------
-FROM eclipse-temurin:21-jre-alpine AS runtime
+FROM eclipse-temurin:25-jre-alpine AS runtime
 WORKDIR /app
 # Nunca rodar como root.
 RUN addgroup -S concord && adduser -S concord -G concord
