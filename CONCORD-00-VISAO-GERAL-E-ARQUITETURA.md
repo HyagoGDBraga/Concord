@@ -672,6 +672,42 @@ stateDiagram-v2
 
 ---
 
+### 11.1 Papéis e estados de conta (D-04)
+
+**Um único papel global além do usuário comum:**
+
+| Papel | Concede |
+|---|---|
+| `USER` | Acesso apenas aos próprios dados e às conversas de que participa |
+| `ADMIN` | Tudo de `USER` **mais** o painel administrativo abaixo |
+
+Sem níveis de administrador, sem permissões granulares, sem RBAC configurável. Se um dia forem necessários, o campo `users.role` comporta a evolução sem migração destrutiva.
+
+**Estados da conta** — máquina de estados única, sem sobreposição:
+
+| Estado | Como se chega | Pode logar | Visível na busca |
+|---|---|---|---|
+| `PENDING_VERIFICATION` | Cadastro | Não | Não |
+| `ACTIVE` | Verificação do e-mail | Sim | Sim |
+| `DISABLED` | Ação de admin (reversível) | Não | Não |
+| `DELETED` | Exclusão pelo titular ou por admin | Não | Não |
+
+Ortogonal a isso, `locked_until` é bloqueio **temporário e automático** por tentativas de login malsucedidas — não é ação administrativa e expira sozinho.
+
+> **Nota sobre "bloquear":** o verbo aparece em dois lugares do produto e significa coisas diferentes. `DISABLED` é o admin impedindo uma conta de operar. `contacts.status = BLOCKED` (Fase 3) é um usuário recusando contato de outro. São mecanismos independentes; a interface precisa usar palavras diferentes para eles.
+
+**Painel administrativo — escopo fechado:**
+
+Listar e pesquisar usuários · ver estado da conta · desativar e reativar · excluir conta · encerrar todas as sessões de um usuário · consultar o `audit_log` com filtros · alternar `REGISTRATION_OPEN`.
+
+**O que o admin não pode fazer, por construção:** ler mensagens, ouvir ou ver mídia, entrar em chamada alheia, ver lista de contatos de terceiros, alterar senha de outro usuário, ler o e-mail de outro usuário em texto claro fora da tela de detalhe da conta. Não existe endpoint que retorne conteúdo de mensagem sob `/api/admin/**` — a ausência é o controle, não uma configuração.
+
+**Toda ação administrativa gera `audit_log`** com: admin responsável, ação, usuário afetado, resultado, IP de origem, user-agent e timestamp. Ações de admin não são silenciosas: desativação e exclusão notificam o titular por e-mail.
+
+**Bootstrap do primeiro admin.** Com cadastro aberto, nenhum fluxo cria um `ADMIN`. Na inicialização, se não existir nenhum `ADMIN` no banco e existir um usuário `ACTIVE` cujo e-mail seja igual a `CONCORD_BOOTSTRAP_ADMIN_EMAIL`, ele é promovido e o evento é auditado. O mecanismo não roda mais depois que houver um admin. Nenhuma senha é semeada por migration — SQL versionado é código-fonte, e segredo não entra em código-fonte.
+
+**Salvaguardas:** o sistema recusa desativar ou excluir o último `ADMIN` restante, e um admin não pode desativar a própria conta.
+
 ## 12. Estratégia de segurança
 
 ### Mapeamento OWASP Top 10 → controle concreto
@@ -776,6 +812,29 @@ Em qualquer opção: sessões revogadas imediatamente, tokens de reset apagados,
 
 ---
 
+### 13.5 Camada de e-mail (D-07)
+
+```
+AuthService / AdminService
+        ↓
+   EmailService        monta o conteúdo a partir de templates, decide idioma,
+        ↓              registra a tentativa
+   EmailProvider       interface — uma implementação por fornecedor
+        ↓
+SmtpEmailProvider      Mailpit em dev, provedor transacional em produção
+```
+
+O backend nunca importa SDK de fornecedor. Trocar de provedor é trocar uma implementação e variáveis de ambiente.
+
+| Ambiente | Implementação | Observação |
+|---|---|---|
+| Desenvolvimento e teste | `SmtpEmailProvider` apontando para **Mailpit** | Nenhum e-mail sai para a internet. Caixa em `http://localhost:8025` |
+| Produção | `SmtpEmailProvider` apontando para provedor externo | Exige SPF, DKIM, DMARC e TLS configurados no domínio |
+
+**Sem servidor de e-mail próprio.** Um MTA autogerido em VPS cai em blocklist, exige manutenção de reputação e entrega pior — o custo é desproporcional ao benefício.
+
+**Limite honesto da abstração:** SMTP entrega a mensagem, mas não devolve status de entrega nem bounce. Isso exige webhook de entrada do provedor — um endpoint público, não autenticado, que precisa de verificação de assinatura. A interface `EmailProvider` prevê o método, mas o webhook fica para a **Fase 7**. Na Fase 2, bounce é tratado indiretamente: conta não verificada em 7 dias é expurgada por job.
+
 ## 14. Privacidade operacional
 
 | Pergunta | Resposta |
@@ -820,10 +879,11 @@ SESSION_COOKIE_NAME=concord_session
 SESSION_TIMEOUT=7d
 CORS_ALLOWED_ORIGINS=https://concord.exemplo.com
 
-# --- Cadastro ---
+# --- Cadastro e administração ---
 REGISTRATION_OPEN=true
 EMAIL_VERIFICATION_TTL=24h
 REGISTRATION_RATE_LIMIT_PER_IP_HOUR=3
+CONCORD_BOOTSTRAP_ADMIN_EMAIL=
 
 # --- TURN ---
 TURN_REALM=concord.exemplo.com
@@ -971,10 +1031,10 @@ O `preload` expõe via `contextBridge` uma superfície **mínima e nomeada** —
 | **D-01** | Sessão em cookie **ou** JWT | ✅ **DECIDIDO: sessão em cookie** (ADR-02). `JWT_SECRET` não existe no `.env`. |
 | **D-02** | Electron **ou** Tauri | ✅ **DECIDIDO: Electron** (ADR-06), pelo suporte a captura de tela. |
 | **D-03** | Cadastro aberto, por convite ou criado por admin | ✅ **DECIDIDO: aberto**, contra minha recomendação inicial. Aceito com o pacote de contenção de §11 e §12.1 (verificação de e-mail, rate limit, honeypot, flag de desligamento). Consequência: **D-04 deixa de ser opcional**. |
-| **D-04** | Existe papel de **administrador**? | ⚠️ **Agora obrigatório** por causa de D-03. Escopo mínimo: desativar/reativar conta, ver `audit_log`, alternar `REGISTRATION_OPEN`, forçar logout de um usuário. **Nunca** ler mensagens alheias — não existe endpoint para isso. |
+| **D-04** | Existe papel de **administrador**? | ✅ **DECIDIDO: papel único `ADMIN`**, sem RBAC granular. Escopo em §11.1. Sem acesso a conteúdo privado — não por flag, por ausência de caminho de código. |
 | **D-05** | Exclusão de conta: anonimizar, apagar tudo, ou deixar o titular escolher | **Anonimizar** (§13.3), preservando o histórico do interlocutor. |
 | **D-06** | Screen share substitui o vídeo da câmera ou vai como segundo stream | **Substituir via `replaceTrack`** no MVP. Segundo stream é mais bonito e bem mais complexo. |
-| **D-07** | E-mail transacional: qual provedor | ⚠️ **Virou bloqueante da Fase 2**: com cadastro aberto, o e-mail deixa de servir só para reset de senha e passa a ser o portão de entrada. Resend (mais simples) ou Amazon SES (mais barato em volume). Exige SPF, DKIM e DMARC no domínio. |
+| **D-07** | E-mail transacional: qual provedor | ✅ **DECIDIDO: Mailpit em dev, provedor externo em produção atrás da interface `EmailProvider`**. Fornecedor final adiado; a Fase 2 fecha inteira com Mailpit. Sem servidor de e-mail próprio. |
 | **D-08** | Domínio e provedor da VPS | Necessário antes da Fase 9; o TURN precisa de IP público estável e de um subdomínio para o certificado TLS. |
 | **D-09** | Idioma da interface: só pt-BR ou preparar i18n | **Só pt-BR** no MVP; estrutura de strings centralizada para facilitar depois. |
 

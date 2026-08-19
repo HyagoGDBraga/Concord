@@ -1,0 +1,7 @@
+Templates de e-mail do Concord.
+
+Substituição simples de {{chave}} feita por EmailTemplates. Todo valor
+interpolado passa por escape de HTML antes da substituição.
+
+Estilo inline por necessidade: clientes de e-mail ignoram folhas de estilo
+externas e boa parte das regras em <style>.

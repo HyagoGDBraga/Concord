@@ -47,6 +47,23 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE}
+      REGISTRATION_OPEN: ${REGISTRATION_OPEN}
+      UNVERIFIED_ACCOUNT_TTL: ${UNVERIFIED_ACCOUNT_TTL}
+      CONCORD_BOOTSTRAP_ADMIN_EMAIL: ${CONCORD_BOOTSTRAP_ADMIN_EMAIL}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USERNAME: ${SMTP_USERNAME}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_AUTH: ${SMTP_AUTH}
+      SMTP_STARTTLS: ${SMTP_STARTTLS}
+      MAIL_FROM: ${MAIL_FROM}
+      TURN_ENABLED: ${TURN_ENABLED}
+      TURN_STUN_URL: ${TURN_STUN_URL}
+      TURN_URLS: ${TURN_URLS}
+      TURN_SECRET: ${TURN_SECRET}
     volumes:
       # Hot reload: o DevTools reinicia a aplicação quando as classes mudam.
       - ./backend/src:/build/src
@@ -90,6 +107,9 @@ services:
     image: axllent/mailpit:latest
     container_name: concord-mailpit
     restart: unless-stopped
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
     ports:
       - "127.0.0.1:8025:8025"
     networks: [concord]
@@ -108,6 +128,29 @@ services:
       - backend
       - frontend
     networks: [concord]
+
+  # --- TURN -----------------------------------------------------------------
+  # Retransmite midia quando os pares nao conseguem falar direto (NAT simetrico,
+  # redes corporativas). Em rede local o STUN basta e este servico fica ocioso.
+  #
+  # network_mode: host e obrigatorio, nao preferencia: o TURN aloca uma faixa
+  # larga de portas UDP, e publicar milhares de portas pelo bridge do Docker e
+  # lento e pouco confiavel. A contrapartida e que o container ignora a rede
+  # 'concord' e enxerga a interface do host diretamente.
+  coturn:
+    image: coturn/coturn:4.6-alpine
+    container_name: concord-coturn
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+    command: >
+      -c /etc/coturn/turnserver.conf
+      --static-auth-secret=${TURN_SECRET}
+      --realm=${TURN_REALM}
+      --external-ip=${TURN_EXTERNAL_IP}
+    profiles: ["turn"]
+
 
 volumes:
   postgres_data:

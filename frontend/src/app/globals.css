@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Tokens de design do Concord.
+   Direcao visual: painel de instrumentos. O produto e um sistema de sinal
+   (voz, video, presenca) e a interface assume esse vocabulario — azul-marinho
+   profundo de console, ambar de indicador, tipografia monoespacada para tudo
+   que e leitura de estado.
+   Tailwind v4 le este bloco e gera as utilidades (bg-ink, text-mint, etc).
+--------------------------------------------------------------------------- */
+@theme {
+  --color-ink: #0b1220;
+  --color-panel: #121c2e;
+  --color-line: #223250;
+  --color-paper: #dbe5f4;
+  --color-muted: #7b8dae;
+  --color-amber: #f2b134;
+  --color-mint: #57cfa1;
+  --color-coral: #ec6a5c;
+
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--color-ink);
+  color: var(--color-paper);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Foco sempre visivel — requisito de acessibilidade desde a Fase 1, nao um
+   ajuste posterior. */
+:focus-visible {
+  outline: 2px solid var(--color-amber);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* Pulso que percorre os elos da cadeia enquanto a verificacao acontece. */
+@keyframes concord-pulse {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.link-pulse::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--color-amber),
+    transparent
+  );
+  animation: concord-pulse 1.1s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .link-pulse::after {
+    animation: none;
+    background: var(--color-amber);
+    opacity: 0.4;
+  }
+}

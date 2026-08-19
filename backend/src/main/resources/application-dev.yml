@@ -1,0 +1,28 @@
+# =============================================================================
+# Concord — perfil de DESENVOLVIMENTO
+# =============================================================================
+
+spring:
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+  devtools:
+    restart:
+      enabled: true
+      # Necessario quando os fontes chegam por bind mount do Docker.
+      poll-interval: 2s
+      quiet-period: 1s
+
+management:
+  endpoint:
+    health:
+      # Em dev queremos ver o detalhe de cada componente (banco, disco...).
+      show-details: always
+
+logging:
+  level:
+    app.concord: DEBUG
+    org.springframework.web: INFO
+    org.hibernate.SQL: DEBUG

@@ -1,0 +1,25 @@
+# =============================================================================
+# Concord — perfil de PRODUCAO
+# =============================================================================
+
+spring:
+  jpa:
+    show-sql: false
+
+server:
+  servlet:
+    session:
+      cookie:
+        # Em producao o cookie so trafega sob HTTPS.
+        secure: true
+
+management:
+  endpoint:
+    health:
+      # Nao revelar componentes internos a quem chamar /api/actuator/health.
+      show-details: never
+
+logging:
+  level:
+    root: INFO
+    app.concord: INFO

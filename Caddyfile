@@ -20,6 +20,11 @@
 
 	# Backend Spring Boot. O context-path da aplicação já é /api, então o
 	# caminho é repassado inteiro — sem strip_prefix, que quebraria redirects.
+	#
+	# Cobre também o WebSocket em /api/ws: o Caddy detecta o cabeçalho Upgrade
+	# e faz a troca de protocolo sozinho, sem configuração adicional. O cookie
+	# de sessão viaja no handshake como em qualquer requisição HTTP — é o que
+	# permite REST e WebSocket reconhecerem a mesma identidade.
 	handle /api/* {
 		reverse_proxy backend:8080 {
 			header_up X-Forwarded-Proto {scheme}

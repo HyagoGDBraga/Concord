@@ -1,0 +1,56 @@
+# =============================================================================
+# Perfil de teste automatizado.
+#
+# O datasource e substituido em tempo de execucao pelo @ServiceConnection do
+# Testcontainers; os valores abaixo existem apenas para que os placeholders
+# ${DATABASE_URL} do application.yml nao precisem de variaveis de ambiente.
+# =============================================================================
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/substituido-pelo-testcontainers
+    username: test
+    password: test
+
+  jpa:
+    show-sql: false
+
+  mail:
+    # Irrelevante nos testes: o EmailProvider e substituido por um mock, entao
+    # nenhuma conexao SMTP e aberta.
+    host: localhost
+    port: 1025
+
+concord:
+  public-url: http://localhost
+  registration-open: true
+  bootstrap-admin-email: ""
+  unverified-account-ttl: 7d
+  mail:
+    from: teste@concord.local
+    from-name: Concord Teste
+  login:
+    max-failed-attempts: 5
+    lock-base-duration: 1m
+    lock-max-duration: 15m
+  turn:
+    enabled: true
+    stun-url: "stun:stun.exemplo.test:3478"
+    urls: "turn:turn.exemplo.test:3478?transport=udp"
+    secret: "segredo-de-teste"
+    credential-ttl: 1h
+
+server:
+  servlet:
+    session:
+      cookie:
+        name: concord_session
+        secure: false
+
+logging:
+  level:
+    app.concord: INFO
+    org.springframework.web: WARN
+    org.hibernate.SQL: WARN
+    org.testcontainers: WARN
+    com.github.dockerjava: WARN

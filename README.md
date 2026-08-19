@@ -67,6 +67,80 @@ elos da cadeia em verde.
 
 ---
 
+## Primeiro acesso (Fase 2)
+
+O sistema nasce sem nenhum administrador. Para criar o primeiro:
+
+1. Preencha `CONCORD_BOOTSTRAP_ADMIN_EMAIL` no `.env` com o e-mail que voce vai
+   usar e suba o ambiente.
+2. Acesse <http://localhost/register> e crie a conta com **esse** e-mail.
+3. Abra o Mailpit em <http://localhost:8025> e clique no link de confirmacao.
+4. Ao confirmar, a conta e promovida a `ADMIN` e o evento fica registrado no
+   `audit_log`.
+5. **Esvazie a variavel** `CONCORD_BOOTSTRAP_ADMIN_EMAIL` do `.env`.
+
+O estado "bootstrap concluido" e persistente (tabela `app_settings`). Depois que
+existir um administrador, repor a variavel nao promove mais ninguem — nem apos
+reiniciar o backend.
+
+> Nenhuma senha de administrador existe em migration, seed ou codigo versionado.
+> A conta e criada pelo fluxo normal de cadastro.
+
+### Telas disponiveis
+
+| Rota | O que faz |
+|---|---|
+| `/login` · `/register` | Entrar e criar conta |
+| `/verify-email` · `/reset-password` · `/confirm-email-change` | Destinos dos links enviados por e-mail |
+| `/forgot-password` | Pedir redefinicao de senha |
+| `/` | Inicio da area autenticada |
+| `/contacts` | Adicionar contato por nome de usuario, aceitar pedidos, bloquear |
+| `/conversations` | Lista de conversas com previa e nao lidas |
+| `/conversations/{id}` | Conversa por texto em tempo real, com chamada de voz e video |
+| `/settings` | Perfil, senha, e-mail, dispositivos conectados, exclusao de conta |
+| `/diagnostics` | Estado da cadeia navegador -> Caddy -> backend -> banco |
+| `/admin/users` · `/admin/audit` | Painel administrativo (somente `ADMIN`) |
+
+Todo e-mail em desenvolvimento cai no Mailpit. **Nada sai para a internet.**
+
+## Chamadas de voz e video
+
+Em desenvolvimento na mesma maquina ou na mesma rede local, o STUN resolve e o
+TURN nem entra em acao — as chamadas funcionam sem subir nada a mais.
+
+Para exercitar o caminho com TURN (obrigatorio em producao, onde ha NAT
+simetrico e redes que bloqueiam UDP):
+
+```bash
+# gere um segredo e coloque em TURN_SECRET no .env
+openssl rand -hex 32
+
+# suba o coturn, que fica fora do ciclo normal
+docker compose --profile turn up -d
+```
+
+O segredo do coturn **nunca** chega ao navegador. O backend deriva dele
+credenciais validas por uma hora e as entrega em `GET /api/webrtc/ice`.
+Credencial estatica embutida no frontend transformaria o servidor em relay
+aberto para qualquer um.
+
+O navegador so libera microfone, camera e captura de tela em contexto seguro.
+`http://localhost` conta como seguro por decisao dos proprios navegadores; em
+qualquer outro endereco, e preciso HTTPS.
+
+### Compartilhamento de tela
+
+Durante uma chamada ativa, o botao **Compartilhar tela** substitui o video
+enviado. A troca usa `replaceTrack` na conexao que ja existe — mesmo codec,
+mesmo transporte, sem renegociacao — e por isso e instantanea.
+
+O audio do sistema **nao** e capturado, por escolha: transmitir a saida de som
+da maquina inteira e a forma mais facil de vazar sem querer uma notificacao ou
+uma outra conversa.
+
+No Firefox, cada troca de tela reabre o seletor do navegador; e comportamento do
+proprio navegador, nao da aplicacao.
+
 ## Comandos do dia a dia
 
 ```bash
@@ -125,19 +199,41 @@ comecam na Fase 2.
 concord/
 ├── docker-compose.yml     ambiente de desenvolvimento
 ├── Caddyfile              roteamento / e /api na mesma origem
+├── coturn/                configuracao do servidor TURN
 ├── .env.example           modelo de configuracao (copie para .env)
 ├── backend/               Spring Boot, organizado por feature
 │   ├── Dockerfile         estagios dev e producao
 │   ├── pom.xml
-│   └── src/main/
-│       ├── java/app/concord/
-│       └── resources/     application*.yml, db/migration/
+│   └── src/
+│       ├── main/java/app/concord/
+│       │   ├── auth/      login, cadastro, sessao, politica de senha
+│       │   ├── contact/   contatos e bloqueio
+│       │   ├── conversation/ conversas diretas e participacao
+│       │   ├── message/   mensagens, cursor de paginacao
+│       │   ├── ws/        WebSocket/STOMP, eventos, presenca de conexao
+│       │   ├── presence/  quem esta online agora
+│       │   ├── call/      ciclo de vida da chamada e sinalizacao
+│       │   ├── webrtc/    credenciais efemeras de STUN/TURN
+│       │   ├── user/      entidade, conta, perfil
+│       │   ├── admin/     painel administrativo e bootstrap do 1o admin
+│       │   ├── audit/     audit_log (SECURITY, ADMIN, PRIVACY)
+│       │   ├── token/     tokens de acao enviados por e-mail
+│       │   ├── email/     EmailService -> EmailProvider
+│       │   ├── privacy/   exclusao de conta por anonimizacao
+│       │   ├── settings/  configuracao alteravel em runtime
+│       │   ├── job/       retencao e limpeza agendadas
+│       │   ├── common/    erros, rate limit, request id
+│       │   └── config/    seguranca, propriedades, filtros
+│       ├── main/resources/  application*.yml, db/migration/, email/, security/
+│       └── test/java/app/concord/  testes unitarios e de integracao
 └── frontend/              Next.js
     ├── Dockerfile         estagios dev e producao
     └── src/
-        ├── app/           rotas (App Router)
-        ├── lib/           clientes de API, WebSocket, configuracao
-        └── ...            features/, components/, hooks/ chegam na Fase 3
+        ├── app/
+        │   ├── (auth)/    login, cadastro, verificacao, reset de senha
+        │   └── (app)/     area autenticada, contatos, conversas, conta, /admin
+        ├── components/    kit de UI proprio
+        └── lib/           apiClient, sessao, tipos, configuracao
 ```
 
 ---
@@ -191,12 +287,12 @@ recarregar, confirme que a montagem de `./backend/src` aparece em
 | Fase | Escopo | Estado |
 | --- | --- | --- |
 | 1 | Fundacao: Docker, Caddy, esqueletos, health check | **concluida** |
-| 2 | Banco, autenticacao por sessao, cadastro com verificacao de e-mail | a seguir |
-| 3 | Contatos e chat via REST |  |
-| 4 | WebSocket/STOMP, tempo real, presenca |  |
-| 5 | WebRTC: voz, depois video, TURN |  |
-| 6 | Compartilhamento de tela |  |
-| 7 | Seguranca e LGPD |  |
+| 2 | Banco, autenticacao por sessao, cadastro com verificacao de e-mail | **concluida** |
+| 3 | Contatos e chat via REST | **concluida** |
+| 4 | WebSocket/STOMP, tempo real, presenca | **concluida** |
+| 5 | WebRTC: voz, depois video, TURN | **concluida** |
+| 6 | Compartilhamento de tela | **concluida** |
+| 7 | Seguranca e LGPD | a seguir |
 | 8 | Testes |  |
 | 9 | Deploy em producao |  |
 | 10 | Aplicativo desktop com Electron |  |

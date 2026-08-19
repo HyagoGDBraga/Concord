@@ -1,0 +1,32 @@
+# Ambiente — NUNCA commitar
+.env
+.env.local
+.env.*.local
+
+# Backend
+backend/target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/next-env.d.ts
+frontend/.turbo/
+
+# Desktop (Fase 10)
+desktop/node_modules/
+desktop/dist/
+
+# Backups locais
+backups/
+
+# Sistema operacional / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.iml
+*.log

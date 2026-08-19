@@ -1,0 +1,40 @@
+package app.concord.audit;
+
+/**
+ * Ações auditáveis.
+ *
+ * <p>Armazenada como texto, sem constraint no banco: o conjunto cresce a cada
+ * fase, e uma constraint obrigaria uma migration a cada evento novo.
+ */
+public enum AuditAction {
+    // SECURITY
+    USER_REGISTERED,
+    EMAIL_VERIFIED,
+    EMAIL_VERIFICATION_RESENT,
+    LOGIN_SUCCESS,
+    LOGIN_FAILURE,
+    ACCOUNT_LOCKED,
+    LOGOUT,
+    PASSWORD_CHANGED,
+    PASSWORD_RESET_REQUESTED,
+    PASSWORD_RESET_COMPLETED,
+    EMAIL_CHANGE_REQUESTED,
+    EMAIL_CHANGED,
+    SESSION_REVOKED,
+    ALL_SESSIONS_REVOKED,
+
+    // ADMIN
+    ADMIN_ACCESS_DENIED,
+    ADMIN_BOOTSTRAP_PROMOTED,
+    ADMIN_USER_LISTED,
+    ADMIN_ACCOUNT_DISABLED,
+    ADMIN_ACCOUNT_ENABLED,
+    ADMIN_SESSIONS_REVOKED,
+    ADMIN_ACCOUNT_DELETED,
+    ADMIN_SETTING_CHANGED,
+
+    // PRIVACY
+    ACCOUNT_DELETED_BY_OWNER,
+    ACCOUNT_ANONYMIZED,
+    UNVERIFIED_ACCOUNT_PURGED
+}
