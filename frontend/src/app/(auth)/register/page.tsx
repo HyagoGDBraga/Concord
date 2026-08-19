@@ -136,6 +136,30 @@ export default function RegisterPage() {
 
         {error && <Alert tone="error">{error}</Alert>}
 
+        {/* O aceite e registrado no servidor com a versao vigente do texto.
+            Os links abrem em nova aba para nao perder o formulario. */}
+        <p className="text-xs text-muted">
+          Ao criar a conta, voce aceita os{" "}
+          <a
+            href="/termos"
+            target="_blank"
+            rel="noreferrer"
+            className="text-amber hover:brightness-110"
+          >
+            Termos de Uso
+          </a>{" "}
+          e a{" "}
+          <a
+            href="/privacidade"
+            target="_blank"
+            rel="noreferrer"
+            className="text-amber hover:brightness-110"
+          >
+            Politica de Privacidade
+          </a>
+          .
+        </p>
+
         <Button type="submit" loading={loading} className="w-full">
           Criar conta
         </Button>

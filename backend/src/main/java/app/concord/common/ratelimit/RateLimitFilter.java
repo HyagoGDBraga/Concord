@@ -38,7 +38,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
             new RateLimitRule("POST", "/auth/password/forgot", 3, Duration.ofHours(1)),
             new RateLimitRule("POST", "/auth/password/reset", 5, Duration.ofHours(1)),
             new RateLimitRule("POST", "/auth/verify-email/resend", 1, Duration.ofMinutes(5)),
-            new RateLimitRule("GET", "/auth/username-available", 20, Duration.ofMinutes(1))
+            new RateLimitRule("GET", "/auth/username-available", 20, Duration.ofMinutes(1)),
+            // Endpoint publico: mesmo com assinatura, limitar a taxa impede que
+            // alguem gaste CPU do servidor forcando verificacoes de HMAC.
+            new RateLimitRule("POST", "/webhooks/email", 120, Duration.ofMinutes(1))
     );
 
     private final RateLimiter rateLimiter;

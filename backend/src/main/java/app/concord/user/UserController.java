@@ -7,9 +7,14 @@ import app.concord.audit.AuditOutcome;
 import app.concord.audit.AuditService;
 import app.concord.common.exception.ApiException;
 import app.concord.common.exception.ErrorCode;
+import app.concord.common.ratelimit.RateLimiter;
+import app.concord.privacy.DataExportService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,6 +26,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Duration;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -39,12 +46,45 @@ public class UserController {
     private final AccountService accountService;
     private final SessionService sessionService;
     private final AuditService auditService;
+    private final DataExportService dataExportService;
+    private final RateLimiter rateLimiter;
 
     public UserController(AccountService accountService, SessionService sessionService,
-                          AuditService auditService) {
+                          AuditService auditService, DataExportService dataExportService,
+                          RateLimiter rateLimiter) {
         this.accountService = accountService;
         this.sessionService = sessionService;
         this.auditService = auditService;
+        this.dataExportService = dataExportService;
+        this.rateLimiter = rateLimiter;
+    }
+
+    /**
+     * Exportação dos dados do titular (Art. 18 da LGPD).
+     *
+     * <p>Limitado a um pedido por dia. Não é economia de recurso: uma exportação
+     * é o arquivo mais sensível que o sistema produz, e uma conta comprometida
+     * poderia usá-la para exfiltrar tudo de uma vez. O limite também deixa
+     * rastro no audit_log se alguém tentar.
+     */
+    @GetMapping("/export")
+    public ResponseEntity<Map<String, Object>> exportData(
+            @AuthenticationPrincipal ConcordUserDetails principal) {
+
+        if (!rateLimiter.tryConsume("export:" + principal.id(), 1, Duration.ofDays(1))) {
+            throw new ApiException(ErrorCode.RATE_LIMITED,
+                    "Você já solicitou uma exportação nas últimas 24 horas");
+        }
+
+        User user = accountService.requireById(principal.id());
+        Map<String, Object> data = dataExportService.export(user);
+
+        String filename = "concord-meus-dados-" + LocalDate.now() + ".json";
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(data);
     }
 
     @PatchMapping

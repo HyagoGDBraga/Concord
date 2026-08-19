@@ -64,6 +64,9 @@ services:
       TURN_STUN_URL: ${TURN_STUN_URL}
       TURN_URLS: ${TURN_URLS}
       TURN_SECRET: ${TURN_SECRET}
+      LEGAL_TERMS_VERSION: ${LEGAL_TERMS_VERSION}
+      LEGAL_PRIVACY_VERSION: ${LEGAL_PRIVACY_VERSION}
+      EMAIL_WEBHOOK_SECRET: ${EMAIL_WEBHOOK_SECRET}
     volumes:
       # Hot reload: o DevTools reinicia a aplicação quando as classes mudam.
       - ./backend/src:/build/src

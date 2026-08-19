@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <!--
+      CSP restritiva: esta pagina e local e nao precisa carregar nada de fora.
+      'unsafe-inline' cobre o estilo e o script embutidos aqui; nao ha rede.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'"
+    />
+    <title>Escolher o que compartilhar</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        padding: 20px;
+        background: #0b1220;
+        color: #dbe5f4;
+        font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+      }
+      h1 {
+        font-size: 15px;
+        font-weight: 600;
+        margin: 0 0 4px;
+      }
+      p.aviso {
+        margin: 0 0 16px;
+        font-size: 12px;
+        color: #7b8dae;
+      }
+      h2 {
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        color: #7b8dae;
+        margin: 18px 0 8px;
+      }
+      .grade {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+      }
+      button.fonte {
+        display: block;
+        width: 100%;
+        padding: 6px;
+        background: #121c2e;
+        border: 1px solid #223250;
+        border-radius: 5px;
+        color: inherit;
+        cursor: pointer;
+        text-align: left;
+        font: inherit;
+      }
+      button.fonte:hover,
+      button.fonte:focus-visible {
+        border-color: #f2b134;
+        outline: none;
+      }
+      button.fonte img {
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        object-fit: contain;
+        background: #0b1220;
+        border-radius: 3px;
+        display: block;
+      }
+      button.fonte span {
+        display: block;
+        margin-top: 6px;
+        font-size: 12px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      footer {
+        margin-top: 20px;
+        display: flex;
+        justify-content: flex-end;
+      }
+      button.cancelar {
+        padding: 8px 18px;
+        background: transparent;
+        border: 1px solid #223250;
+        border-radius: 4px;
+        color: #7b8dae;
+        cursor: pointer;
+        font: inherit;
+      }
+      button.cancelar:hover {
+        color: #dbe5f4;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Escolher o que compartilhar</h1>
+    <p class="aviso">
+      A pessoa do outro lado vera exatamente o que estiver nesta janela ou tela,
+      inclusive notificacoes que aparecerem.
+    </p>
+
+    <div id="conteudo"></div>
+
+    <footer>
+      <button class="cancelar" id="cancelar" autofocus>Cancelar</button>
+    </footer>
+
+    <script>
+      const conteudo = document.getElementById("conteudo");
+
+      function grupo(titulo, fontes) {
+        if (fontes.length === 0) {
+          return "";
+        }
+        const cabecalho = document.createElement("h2");
+        cabecalho.textContent = titulo;
+
+        const grade = document.createElement("div");
+        grade.className = "grade";
+
+        for (const fonte of fontes) {
+          const botao = document.createElement("button");
+          botao.className = "fonte";
+          botao.type = "button";
+
+          const imagem = document.createElement("img");
+          imagem.src = fonte.miniatura;
+          imagem.alt = "";
+
+          const rotulo = document.createElement("span");
+          // textContent, nunca innerHTML: o nome vem do titulo de uma janela
+          // qualquer do sistema e nao e conteudo confiavel.
+          rotulo.textContent = fonte.nome;
+
+          botao.append(imagem, rotulo);
+          botao.addEventListener("click", () => window.picker.escolher(fonte.id));
+          grade.append(botao);
+        }
+
+        conteudo.append(cabecalho, grade);
+      }
+
+      window.picker.listar().then((fontes) => {
+        grupo(
+          "Telas",
+          fontes.filter((fonte) => fonte.tipo === "tela"),
+        );
+        grupo(
+          "Janelas",
+          fontes.filter((fonte) => fonte.tipo === "janela"),
+        );
+      });
+
+      document
+        .getElementById("cancelar")
+        .addEventListener("click", () => window.picker.escolher(null));
+
+      document.addEventListener("keydown", (evento) => {
+        if (evento.key === "Escape") {
+          window.picker.escolher(null);
+        }
+      });
+    </script>
+  </body>
+</html>

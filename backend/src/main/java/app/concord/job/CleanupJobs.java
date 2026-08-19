@@ -3,6 +3,8 @@ package app.concord.job;
 import app.concord.audit.AuditCategory;
 import app.concord.audit.AuditLogRepository;
 import app.concord.common.ratelimit.RateLimiter;
+import app.concord.email.EmailSuppressionRepository;
+import app.concord.legal.UserConsentRepository;
 import app.concord.config.AppProperties;
 import app.concord.privacy.AccountDeletionService;
 import app.concord.token.UserActionTokenRepository;
@@ -44,17 +46,23 @@ public class CleanupJobs {
     private final AuditLogRepository auditLogRepository;
     private final AccountDeletionService deletionService;
     private final RateLimiter rateLimiter;
+    private final UserConsentRepository consentRepository;
+    private final EmailSuppressionRepository suppressionRepository;
     private final AppProperties properties;
 
     public CleanupJobs(UserActionTokenRepository tokenRepository, UserRepository userRepository,
                        AuditLogRepository auditLogRepository,
                        AccountDeletionService deletionService, RateLimiter rateLimiter,
+                       UserConsentRepository consentRepository,
+                       EmailSuppressionRepository suppressionRepository,
                        AppProperties properties) {
         this.tokenRepository = tokenRepository;
         this.userRepository = userRepository;
         this.auditLogRepository = auditLogRepository;
         this.deletionService = deletionService;
         this.rateLimiter = rateLimiter;
+        this.consentRepository = consentRepository;
+        this.suppressionRepository = suppressionRepository;
         this.properties = properties;
     }
 
@@ -104,6 +112,32 @@ public class CleanupJobs {
         if (scrubbed + security + admin + privacy > 0) {
             log.info("Retenção da auditoria: {} IPs anulados, {} SECURITY, {} ADMIN, {} PRIVACY removidos",
                     scrubbed, security, admin, privacy);
+        }
+    }
+
+    /**
+     * Retenção dos dados acessórios de privacidade.
+     *
+     * <p>O IP do aceite sai depois de seis meses: ele dá valor probatório ao
+     * consentimento no curto prazo, mas o consentimento em si — quem, qual
+     * documento, qual versão, quando — permanece.
+     *
+     * <p>Bounce temporário também expira: caixa cheia é problema passageiro, e
+     * suprimir para sempre por causa disso puniria o usuário por algo já
+     * resolvido.
+     */
+    @Scheduled(cron = "0 50 3 * * *")
+    @Transactional
+    public void applyPrivacyRetention() {
+        Instant now = Instant.now();
+
+        int consentIps = consentRepository.scrubIpBefore(now.minus(IP_RETENTION));
+        int softBounces = suppressionRepository.deleteExpiredSoftBounces(
+                now.minus(Duration.ofDays(30)));
+
+        if (consentIps + softBounces > 0) {
+            log.info("Retenção de privacidade: {} IPs de consentimento anulados, "
+                    + "{} supressões temporárias liberadas", consentIps, softBounces);
         }
     }
 

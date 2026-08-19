@@ -39,6 +39,11 @@ concord:
     urls: "turn:turn.exemplo.test:3478?transport=udp"
     secret: "segredo-de-teste"
     credential-ttl: 1h
+  legal:
+    terms-version: "2026-01"
+    privacy-version: "2026-01"
+  webhook:
+    email-secret: "segredo-de-webhook-para-teste"
 
 server:
   servlet:

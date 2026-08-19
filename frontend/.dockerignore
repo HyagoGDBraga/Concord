@@ -4,3 +4,9 @@ out/
 .git/
 .gitignore
 *.md
+
+# Testes ponta a ponta nao entram na imagem
+e2e
+playwright.config.ts
+playwright-report
+test-results

@@ -1,0 +1,71 @@
+# =============================================================================
+# Concord — Caddy (produção)
+#
+# TLS automático via Let's Encrypt. O Caddy obtém e renova o certificado
+# sozinho; a única exigência é que as portas 80 e 443 estejam abertas e que o
+# DNS do domínio já aponte para esta máquina ANTES da primeira subida.
+#
+# Se o DNS ainda não propagou, o desafio ACME falha e o Caddy fica tentando —
+# é a causa nº 1 de "subiu mas não abre".
+# =============================================================================
+
+{
+	admin off
+	email {$ACME_EMAIL}
+
+	# Descomente para testar sem gastar a cota do Let's Encrypt. O certificado
+	# do staging NÃO é confiável pelo navegador — é para validar a mecânica,
+	# não para usar.
+	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+}
+
+{$CONCORD_DOMAIN} {
+	encode zstd gzip
+
+	# --- Cabeçalhos de borda ------------------------------------------------
+	# O Next também os envia; aqui eles cobrem qualquer resposta que não passe
+	# por ele — erro do proxy, resposta do backend, arquivo estático.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		# Não anunciar a versão do servidor.
+		-Server
+	}
+
+	# --- Backend ------------------------------------------------------------
+	# Cobre REST e WebSocket (/api/ws). O Caddy detecta o Upgrade e troca de
+	# protocolo sozinho.
+	handle /api/* {
+		reverse_proxy backend:8080 {
+			header_up X-Forwarded-Proto {scheme}
+			header_up X-Real-IP {remote_host}
+
+			# Sem timeout de leitura: uma conexão WebSocket fica aberta por
+			# horas, e o padrão do proxy a derrubaria periodicamente.
+			transport http {
+				read_timeout 0
+				write_timeout 0
+			}
+		}
+	}
+
+	# --- Frontend -----------------------------------------------------------
+	handle {
+		reverse_proxy frontend:3000
+	}
+
+	# --- Log ----------------------------------------------------------------
+	log {
+		output file /data/access.log {
+			roll_size 20mb
+			roll_keep 5
+			roll_keep_for 720h
+		}
+		format json
+		# O log de acesso registra IP e caminho de cada requisição — é a fonte
+		# mais rica de metadados do sistema. A retenção de 30 dias acima existe
+		# por isso; ajuste conforme a política de privacidade.
+	}
+}

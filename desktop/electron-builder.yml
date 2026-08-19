@@ -1,0 +1,56 @@
+# Empacotamento do Concord Desktop.
+#
+# Gera instaladores para Linux, Windows e macOS. Nao ha assinatura de codigo
+# configurada: no Windows o SmartScreen vai avisar, e no macOS o Gatekeeper vai
+# bloquear na primeira abertura. Resolver isso exige certificado pago em cada
+# plataforma — decisao adiada, documentada em DESKTOP.md.
+
+appId: com.concord.desktop
+productName: Concord
+copyright: Concord
+
+directories:
+  output: release
+  buildResources: resources
+
+files:
+  - dist/**/*
+  - package.json
+
+# O aplicativo carrega a interface do servidor; nao ha assets de aplicacao para
+# embarcar alem do proprio processo principal e do seletor de tela.
+asar: true
+
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Network
+  # Ampere/Oracle e ARM, mas o desktop roda na maquina do usuario. x64 cobre a
+  # maioria; arm64 atende Raspberry Pi e notebooks ARM.
+  artifactName: ${productName}-${version}-${arch}.${ext}
+
+win:
+  target:
+    - nsis
+  artifactName: ${productName}-${version}-Setup.${ext}
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+
+mac:
+  target:
+    - dmg
+  category: public.app-category.social-networking
+  # Direitos obrigatorios para captura de midia no macOS. Sem estas
+  # declaracoes, o sistema nega microfone e camera sem nem perguntar.
+  extendInfo:
+    NSMicrophoneUsageDescription: >-
+      O Concord precisa do microfone para chamadas de voz e video.
+    NSCameraUsageDescription: >-
+      O Concord precisa da camera para chamadas de video.
+  hardenedRuntime: true
+  entitlements: resources/entitlements.mac.plist
+  entitlementsInherit: resources/entitlements.mac.plist

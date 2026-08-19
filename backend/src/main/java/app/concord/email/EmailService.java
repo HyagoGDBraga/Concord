@@ -26,12 +26,15 @@ public class EmailService {
     private final EmailProvider provider;
     private final EmailTemplates templates;
     private final AppProperties properties;
+    private final EmailSuppressionService suppressionService;
 
     public EmailService(EmailProvider provider, EmailTemplates templates,
-                        AppProperties properties) {
+                        AppProperties properties,
+                        EmailSuppressionService suppressionService) {
         this.provider = provider;
         this.templates = templates;
         this.properties = properties;
+        this.suppressionService = suppressionService;
     }
 
     public void sendEmailVerification(String to, String displayName, String token) {
@@ -76,6 +79,13 @@ public class EmailService {
 
     private void send(String to, String subject, String template,
                       java.util.Map<String, String> variables) {
+        // Endereço suprimido não recebe mais nada. Insistir em quem já deu
+        // hard bounce ou marcou como spam é o caminho mais rápido para o
+        // domínio inteiro cair em blocklist.
+        if (suppressionService.isSuppressed(to)) {
+            log.info("Envio de '{}' cancelado: destinatário na lista de supressão", template);
+            return;
+        }
         try {
             String html = templates.render(template, variables);
             provider.send(new EmailMessage(to, subject, html, templates.toPlainText(html)));

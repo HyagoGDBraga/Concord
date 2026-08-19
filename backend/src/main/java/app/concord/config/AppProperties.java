@@ -20,7 +20,9 @@ public record AppProperties(
         Duration unverifiedAccountTtl,
         Mail mail,
         Login login,
-        Turn turn
+        Turn turn,
+        Legal legal,
+        Webhook webhook
 ) {
 
     public record Mail(String from, String fromName) {
@@ -54,5 +56,22 @@ public record AppProperties(
             String secret,
             Duration credentialTtl
     ) {
+    }
+
+    /**
+     * Versões vigentes dos documentos legais.
+     *
+     * <p>Mudar a versão aqui invalida os aceites anteriores e faz o sistema
+     * pedir um aceite novo — que é exatamente o comportamento desejado quando o
+     * texto muda.
+     */
+    public record Legal(String termsVersion, String privacyVersion) {
+    }
+
+    /**
+     * @param emailSecret segredo usado para verificar a assinatura do webhook de
+     *                    bounce. Vazio desabilita o endpoint por completo
+     */
+    public record Webhook(String emailSecret) {
     }
 }

@@ -1,0 +1,50 @@
+# Atualizacoes automaticas de dependencia.
+#
+# Agrupadas e semanais de proposito: um pull request por dependencia por dia
+# produz ruido que ninguem le, e dependencia que ninguem le e dependencia que
+# ninguem atualiza.
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      spring:
+        patterns:
+          - "org.springframework*"
+          - "org.springframework.boot*"
+      testes:
+        patterns:
+          - "org.testcontainers*"
+          - "org.junit*"
+          - "org.assertj*"
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      next:
+        patterns:
+          - "next"
+          - "react"
+          - "react-dom"
+          - "eslint-config-next"
+      tipos:
+        patterns:
+          - "@types/*"
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: monthly
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

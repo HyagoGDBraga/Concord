@@ -7,6 +7,7 @@ import { useSession } from "@/lib/session";
 import { RealtimeProvider } from "@/lib/realtime";
 import { CallProvider } from "@/lib/callContext";
 import { CallPanel } from "@/components/CallPanel";
+import { ConsentBanner } from "@/components/ConsentBanner";
 import { Button, Spinner } from "@/components/ui";
 
 /**
@@ -71,6 +72,7 @@ function AuthenticatedShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen">
+      <ConsentBanner />
       <header className="border-b border-line bg-panel">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-6 gap-y-3 px-6 py-4">
           <Link href="/" className="font-mono text-xs uppercase tracking-[0.3em] text-amber">

@@ -8,6 +8,7 @@ import app.concord.common.exception.ApiException;
 import app.concord.common.exception.ErrorCode;
 import app.concord.config.AppProperties;
 import app.concord.email.EmailService;
+import app.concord.legal.ConsentService;
 import app.concord.settings.SettingKey;
 import app.concord.settings.SettingsService;
 import app.concord.token.ActionTokenService;
@@ -46,6 +47,7 @@ public class RegistrationService {
     private final AuditService auditService;
     private final SettingsService settingsService;
     private final AdminBootstrapService adminBootstrapService;
+    private final ConsentService consentService;
     private final AppProperties properties;
 
     public RegistrationService(UserRepository userRepository, PasswordEncoder passwordEncoder,
@@ -53,6 +55,7 @@ public class RegistrationService {
                                EmailService emailService, AuditService auditService,
                                SettingsService settingsService,
                                AdminBootstrapService adminBootstrapService,
+                               ConsentService consentService,
                                AppProperties properties) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
@@ -62,6 +65,7 @@ public class RegistrationService {
         this.auditService = auditService;
         this.settingsService = settingsService;
         this.adminBootstrapService = adminBootstrapService;
+        this.consentService = consentService;
         this.properties = properties;
     }
 
@@ -116,6 +120,10 @@ public class RegistrationService {
         ActionTokenService.IssuedToken issued =
                 tokenService.issue(user.getId(), ActionTokenType.EMAIL_VERIFICATION, null);
         emailService.sendEmailVerification(email, user.getDisplayName(), issued.plainToken());
+
+        // O formulário de cadastro apresenta os dois documentos; o aceite é
+        // registrado com a versão vigente, que é o que dá valor ao registro.
+        consentService.acceptAllAtRegistration(user.getId());
 
         auditService.security(AuditAction.USER_REGISTERED, AuditOutcome.SUCCESS,
                 user.getId(), user.getUsername(), Map.of());

@@ -97,7 +97,8 @@ reiniciar o backend.
 | `/contacts` | Adicionar contato por nome de usuario, aceitar pedidos, bloquear |
 | `/conversations` | Lista de conversas com previa e nao lidas |
 | `/conversations/{id}` | Conversa por texto em tempo real, com chamada de voz e video |
-| `/settings` | Perfil, senha, e-mail, dispositivos conectados, exclusao de conta |
+| `/settings` | Perfil, senha, e-mail, dispositivos, exportacao de dados, exclusao |
+| `/termos` · `/privacidade` | Documentos legais, publicos |
 | `/diagnostics` | Estado da cadeia navegador -> Caddy -> backend -> banco |
 | `/admin/users` · `/admin/audit` | Painel administrativo (somente `ADMIN`) |
 
@@ -141,6 +142,20 @@ uma outra conversa.
 No Firefox, cada troca de tela reabre o seletor do navegador; e comportamento do
 proprio navegador, nao da aplicacao.
 
+## Aplicativo desktop
+
+```bash
+cd desktop
+npm install
+npm run dev                                    # contra o ambiente local
+npm start -- --url=https://seu.dominio.com     # contra producao
+npm run dist:linux                             # gera AppImage e .deb
+```
+
+O desktop carrega a mesma interface do servidor — nao ha tela duplicada. Ele
+acrescenta o que o navegador nao da: seletor de tela proprio, notificacao de
+chamada no sistema operacional e conexao que sobrevive a janela minimizada.
+
 ## Comandos do dia a dia
 
 ```bash
@@ -177,6 +192,9 @@ Verificacoes:
 
 ```bash
 docker compose exec frontend npm run typecheck
+
+# Testes ponta a ponta (exigem o ambiente no ar)
+cd frontend && npx playwright install --with-deps chromium && npm run test:e2e
 docker compose exec frontend npm run lint
 docker compose exec frontend npm run format
 ```
@@ -200,6 +218,11 @@ concord/
 ├── docker-compose.yml     ambiente de desenvolvimento
 ├── Caddyfile              roteamento / e /api na mesma origem
 ├── coturn/                configuracao do servidor TURN
+├── .github/workflows/     integracao continua
+├── docker-compose.prod.yml  override de producao
+├── Caddyfile.prod         TLS automatico
+├── scripts/               backup, restore, deploy, preparacao da VM
+├── desktop/               aplicativo Electron
 ├── .env.example           modelo de configuracao (copie para .env)
 ├── backend/               Spring Boot, organizado por feature
 │   ├── Dockerfile         estagios dev e producao
@@ -214,6 +237,8 @@ concord/
 │       │   ├── presence/  quem esta online agora
 │       │   ├── call/      ciclo de vida da chamada e sinalizacao
 │       │   ├── webrtc/    credenciais efemeras de STUN/TURN
+│       │   ├── legal/     consentimento versionado
+│       │   ├── privacy/   exclusao e exportacao de dados
 │       │   ├── user/      entidade, conta, perfil
 │       │   ├── admin/     painel administrativo e bootstrap do 1o admin
 │       │   ├── audit/     audit_log (SECURITY, ADMIN, PRIVACY)
@@ -282,6 +307,21 @@ recarregar, confirme que a montagem de `./backend/src` aparece em
 
 ---
 
+## Documentacao
+
+| Arquivo | Conteudo |
+|---|---|
+| `docs/CONCORD-00-VISAO-GERAL-E-ARQUITETURA.md` | Requisitos, ADRs, decisoes D-01 a D-09, roadmap |
+| `docs/CONCORD-02-SESSAO-E-AUTENTICACAO.md` | Modelo de sessao, CSRF, autenticacao do WebSocket |
+| `docs/SECURITY.md` | Modelo de ameaca, controles, limitacoes conhecidas |
+| `docs/LGPD.md` | Inventario de dados, direitos do titular, pendencias juridicas |
+| `docs/DATABASE.md` | Schema, invariantes, retencao, operacao |
+| `docs/API.md` | Referencia dos endpoints REST |
+| `docs/DEPLOY.md` | Producao em VM Oracle Cloud Always Free |
+| `docs/WEBSOCKET.md` | STOMP, destinos, eventos, reconexao |
+| `docs/WEBRTC.md` | Sinalizacao, TURN, compartilhamento de tela |
+| `docs/DESKTOP.md` | Aplicativo Electron, empacotamento, limitacoes |
+
 ## Roadmap
 
 | Fase | Escopo | Estado |
@@ -292,7 +332,7 @@ recarregar, confirme que a montagem de `./backend/src` aparece em
 | 4 | WebSocket/STOMP, tempo real, presenca | **concluida** |
 | 5 | WebRTC: voz, depois video, TURN | **concluida** |
 | 6 | Compartilhamento de tela | **concluida** |
-| 7 | Seguranca e LGPD | a seguir |
-| 8 | Testes |  |
-| 9 | Deploy em producao |  |
-| 10 | Aplicativo desktop com Electron |  |
+| 7 | Seguranca e LGPD | **concluida** |
+| 8 | Testes | **concluida** |
+| 9 | Deploy em producao | **concluida** |
+| 10 | Aplicativo desktop com Electron | **concluida** |

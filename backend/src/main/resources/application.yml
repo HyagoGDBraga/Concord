@@ -91,6 +91,15 @@ concord:
     # deriva credenciais efemeras por HMAC-SHA1.
     secret: ${TURN_SECRET:}
     credential-ttl: 1h
+  legal:
+    # Mudar a versao invalida os aceites anteriores e faz o sistema pedir um
+    # aceite novo. E o comportamento desejado quando o texto muda.
+    terms-version: ${LEGAL_TERMS_VERSION:2026-01}
+    privacy-version: ${LEGAL_PRIVACY_VERSION:2026-01}
+  webhook:
+    # Segredo do webhook de bounce. Vazio DESLIGA o endpoint por completo — ele
+    # nao fica aberto por esquecimento.
+    email-secret: ${EMAIL_WEBHOOK_SECRET:}
 
 server:
   port: 8080

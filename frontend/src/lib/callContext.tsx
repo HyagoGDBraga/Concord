@@ -22,6 +22,7 @@ import {
   useState,
 } from "react";
 import { api, errorMessage } from "./apiClient";
+import { clearCallNotification, notifyIncomingCall } from "./desktop";
 import {
   useRealtime,
   useRealtimeEvent,
@@ -81,6 +82,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   /* ------------------------------------------------------------ limpeza */
 
   const teardown = useCallback(() => {
+    clearCallNotification();
     peerRef.current?.close();
     peerRef.current = null;
     setLocalStream(null);
@@ -284,6 +286,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     }
     setCall(incoming);
     setPhase("incoming");
+
+    // No desktop, destaca na barra de tarefas e emite notificacao do sistema.
+    // No navegador e no-op.
+    notifyIncomingCall(incoming.peer?.displayName ?? "Alguem");
   });
 
   useRealtimeEvent<CallInfo>("CALL_ACCEPTED", async (accepted) => {

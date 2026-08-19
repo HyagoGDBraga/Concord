@@ -1,0 +1,25 @@
+{
+  "name": "concord-desktop",
+  "version": "0.10.0",
+  "description": "Concord — aplicativo desktop",
+  "main": "dist/main.js",
+  "author": "Concord",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "build": "tsc && node scripts/copy-assets.mjs",
+    "dev": "npm run build && electron . --url=http://localhost",
+    "start": "npm run build && electron .",
+    "typecheck": "tsc --noEmit",
+    "dist": "npm run build && electron-builder",
+    "dist:linux": "npm run build && electron-builder --linux",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:mac": "npm run build && electron-builder --mac"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.7.2"
+  }
+}

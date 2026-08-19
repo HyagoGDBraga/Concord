@@ -136,7 +136,12 @@ public class SecurityConfig {
                             "/auth/verify-email/resend",
                             "/auth/password/forgot",
                             "/auth/password/reset",
-                            "/auth/email-change/confirm").permitAll()
+                            "/auth/email-change/confirm",
+                            // Webhook de bounce. Publico por necessidade — o
+                            // provedor de e-mail nao tem sessao aqui —, mas
+                            // protegido por assinatura HMAC verificada no
+                            // controller, e desligado quando nao ha segredo.
+                            "/webhooks/email").permitAll()
                     .requestMatchers(HttpMethod.GET,
                             "/auth/username-available",
                             "/actuator/health",

@@ -20,6 +20,7 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <ProfileSection />
+      <DataSection />
       <PasswordSection />
       <EmailSection />
       <SessionsSection />
@@ -79,6 +80,69 @@ function ProfileSection() {
           Salvar
         </Button>
       </form>
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------- meus dados */
+
+/**
+ * Direito de acesso e portabilidade (Art. 18 da LGPD).
+ *
+ * O download acontece no navegador, sem intermediario: a resposta e convertida
+ * em Blob e salva. Nao ha arquivo gerado no servidor que pudesse ficar
+ * esquecido em disco.
+ */
+function DataSection() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function download() {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await api.get<unknown>("/users/me/export");
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `concord-meus-dados-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Card
+      title="Meus dados"
+      description="Baixe tudo o que o Concord guarda sobre voce, em JSON."
+    >
+      <p className="text-sm text-muted">
+        O arquivo traz seu perfil, contatos, conversas, registros de chamada e o
+        historico de aceites. Nao inclui sua senha, que e guardada apenas como
+        hash e nao pode ser revertida.
+      </p>
+      <p className="mt-2 text-sm text-muted">
+        Limite de um pedido por dia. O arquivo contem dados pessoais — guarde-o
+        com cuidado.
+      </p>
+      {error && (
+        <div className="mt-4">
+          <Alert tone="error">{error}</Alert>
+        </div>
+      )}
+      <div className="mt-4">
+        <Button variant="secondary" loading={loading} onClick={() => void download()}>
+          Baixar meus dados
+        </Button>
+      </div>
     </Card>
   );
 }
