@@ -784,3 +784,105 @@ h3 {
 .channel-empty-mark {
   background: #39342b;
 }
+
+.community-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: #0c0b09bf;
+  backdrop-filter: blur(8px);
+}
+
+.community-modal {
+  width: min(100%, 430px);
+  padding: 28px;
+  border: 1px solid #71624d;
+  border-radius: 8px;
+  background: #2c2923;
+  box-shadow: 0 24px 70px #080704cc;
+}
+
+.community-modal h2 {
+  margin-top: 8px;
+  color: var(--color-paper);
+  font-size: 28px;
+}
+
+.modal-copy {
+  margin-top: 8px;
+  color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.community-modal input {
+  width: 100%;
+  min-height: 46px;
+  margin-top: 22px;
+  padding: 0 13px;
+  border: 1px solid #645744;
+  border-radius: 4px;
+  background: #171512;
+  color: var(--color-paper);
+  outline: none;
+}
+
+.community-modal input:focus {
+  border-color: var(--color-amber);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-top: 22px;
+}
+
+.modal-actions button {
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.modal-actions .modal-submit {
+  padding: 10px 16px;
+  border-radius: 4px;
+  background: var(--color-amber);
+  color: #171512;
+  font-weight: 700;
+}
+
+.community-toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 40;
+  max-width: min(360px, calc(100vw - 32px));
+  padding: 13px 16px;
+  border: 1px solid #79613d;
+  border-radius: 5px;
+  background: #3a2e20;
+  color: var(--color-paper);
+  font-size: 13px;
+  text-align: left;
+  box-shadow: 0 12px 32px #08070499;
+}
+
+/* Reduz o verde decorativo: ele fica reservado para estados online/sucesso. */
+.home-tile-main {
+  border-color: #79613d;
+  background: linear-gradient(135deg, #3a2e20, #24211c 72%);
+}
+
+.status-dot,
+.profile-copy small {
+  background: #d6a84a;
+  color: #d6a84a;
+}
+
+.add-orb {
+  color: var(--color-amber);
+  border-color: #79613d;
+}

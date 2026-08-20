@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/apiClient";
 
 type Channel = { id?: string; name: string; kind: "text" | "voice" };
@@ -58,6 +58,10 @@ export function CommunityShell({
   const [activeCommunity, setActiveCommunity] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [members, setMembers] = useState<MemberResponse[]>([]);
+  const [modal, setModal] = useState<"server" | "channel" | "member" | "invite" | null>(null);
+  const [modalValue, setModalValue] = useState("");
+  const [toast, setToast] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -95,9 +99,8 @@ export function CommunityShell({
     };
   }, []);
 
-  async function createCommunity() {
-    const name = window.prompt("Nome do servidor");
-    if (!name?.trim()) {
+  async function createCommunity(name: string) {
+    if (!name.trim()) {
       return;
     }
     let next: Community[];
@@ -119,9 +122,8 @@ export function CommunityShell({
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   }
 
-  async function createChannel() {
-    const name = window.prompt("Nome do canal");
-    if (!name?.trim() || !community) {
+  async function createChannel(name: string) {
+    if (!name.trim() || !community) {
       return;
     }
     const channelName = name.trim();
@@ -153,6 +155,26 @@ export function CommunityShell({
   const community = communities[activeCommunity] ?? communities[0];
 
   useEffect(() => {
+    function closeOnOutside(event: PointerEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+        setModal(null);
+      }
+    }
+    document.addEventListener("pointerdown", closeOnOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!community?.id) {
       setMembers([]);
       return;
@@ -162,12 +184,11 @@ export function CommunityShell({
       .catch(() => setMembers([]));
   }, [community?.id]);
 
-  async function addMember() {
+  async function addMember(username: string) {
     if (!community?.id) {
       return;
     }
-    const username = window.prompt("Username da pessoa");
-    if (!username?.trim()) {
+    if (!username.trim()) {
       return;
     }
     try {
@@ -176,24 +197,26 @@ export function CommunityShell({
       });
       setMembers((current) => [...current, member]);
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Não foi possível adicionar o membro");
+      setToast(error instanceof Error ? error.message : "Não foi possível adicionar o membro");
     }
   }
 
-  async function createInvite() {
+  async function createInvite(username: string) {
     if (!community?.id) {
       return;
     }
-    const username = window.prompt("Username para convidar");
-    if (!username?.trim()) {
+    if (!username.trim()) {
       return;
     }
     try {
       const invite = await api.post<{ token: string; expiresAt: string }>(
         `/servers/${community.id}/invites`, { username: username.trim() });
-      window.alert(`Convite criado. Código: ${invite.token}\nExpira em ${new Date(invite.expiresAt).toLocaleDateString("pt-BR")}.`);
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(invite.token).catch(() => {});
+      }
+      setToast(`Convite copiado. Expira em ${new Date(invite.expiresAt).toLocaleDateString("pt-BR")}.`);
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Não foi possível criar o convite");
+      setToast(error instanceof Error ? error.message : "Não foi possível criar o convite");
     }
   }
 
@@ -216,13 +239,13 @@ export function CommunityShell({
             {initials(item.name)}
           </button>
         ))}
-        <button type="button" className="community-orb add-orb" onClick={createCommunity} title="Criar servidor">
+      <button type="button" className="community-orb add-orb" onClick={() => { setModal("server"); setModalValue(""); }} title="Criar servidor">
           +
         </button>
       </aside>
 
       <aside className="channel-sidebar" aria-label="Canais do servidor">
-        <div className="server-heading">
+        <div className="server-heading" ref={menuRef}>
           <div>
             <p className="eyebrow">Servidor</p>
             <h1>{community.name}</h1>
@@ -234,10 +257,10 @@ export function CommunityShell({
             <div className="server-popover">
               <strong>{community.name}</strong>
               <span>Espaço compartilhado</span>
-              <button type="button" className="popover-action" onClick={() => void addMember()}>
+              <button type="button" className="popover-action" onClick={() => { setModal("member"); setModalValue(""); }}>
                 + adicionar membro
               </button>
-              <button type="button" className="popover-action" onClick={() => void createInvite()}>
+              <button type="button" className="popover-action" onClick={() => { setModal("invite"); setModalValue(""); }}>
                 ↗ convidar membro
               </button>
               {members.length > 0 && (
@@ -254,7 +277,7 @@ export function CommunityShell({
         <div className="channel-group">
           <div className="channel-group-title">
             <span>CANAIS</span>
-            <button type="button" onClick={createChannel} aria-label="Criar canal">+</button>
+            <button type="button" onClick={() => { setModal("channel"); setModalValue(""); }} aria-label="Criar canal">+</button>
           </div>
           {community.channels.map((channel) => (
             <Link
@@ -280,6 +303,45 @@ export function CommunityShell({
       </aside>
 
       <main className="community-content">{children}</main>
+
+      {modal && (
+        <div className="community-modal-backdrop" onMouseDown={() => setModal(null)}>
+          <form
+            className="community-modal"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const action = modal === "server" ? createCommunity
+                : modal === "channel" ? createChannel
+                  : modal === "member" ? addMember : createInvite;
+              void action(modalValue).then(() => {
+                setModal(null);
+                setModalValue("");
+              });
+            }}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <p className="eyebrow">Concord / {modal === "server" ? "novo servidor" : modal === "channel" ? "novo canal" : modal === "invite" ? "novo convite" : "novo membro"}</p>
+            <h2>{modal === "server" ? "Criar servidor" : modal === "channel" ? "Criar canal" : modal === "invite" ? "Convidar alguém" : "Adicionar membro"}</h2>
+            <p className="modal-copy">{modal === "channel" ? "Dê um nome curto para a sala da comunidade." : "Tudo começa com uma boa sala para as pessoas se encontrarem."}</p>
+            <input
+              autoFocus
+              value={modalValue}
+              onChange={(event) => setModalValue(event.target.value)}
+              placeholder={modal === "server" ? "Nome do servidor" : modal === "channel" ? "ex.: papo-livre" : "username"}
+              maxLength={80}
+            />
+            <div className="modal-actions">
+              <button type="button" onClick={() => setModal(null)}>Cancelar</button>
+              <button type="submit" className="modal-submit">Confirmar</button>
+            </div>
+          </form>
+        </div>
+      )}
+      {toast && (
+        <button type="button" className="community-toast" onClick={() => setToast(null)}>
+          {toast}
+        </button>
+      )}
     </div>
   );
 }
