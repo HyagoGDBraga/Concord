@@ -54,4 +54,8 @@ public class ServerMember {
     public Instant getCreatedAt() {
         return createdAt;
     }
+
+    public void changeRole(String role) {
+        this.role = role;
+    }
 }

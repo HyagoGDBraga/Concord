@@ -51,7 +51,7 @@ public class ServerService {
     @Transactional
     public ServerDtos.ChannelResponse createChannel(User user, UUID serverId,
                                                      ServerDtos.CreateChannelRequest request) {
-        requireMember(serverId, user.getId());
+        requireOwner(serverId, user.getId());
         String name = request.name().trim();
         if (channelRepository.existsByServerIdAndNameIgnoreCase(serverId, name)) {
             throw new ApiException(ErrorCode.CHANNEL_NAME_TAKEN);
@@ -113,6 +113,18 @@ public class ServerService {
             throw new ApiException(ErrorCode.USER_NOT_FOUND);
         }
         memberRepository.deleteByServerIdAndUserId(serverId, userId);
+    }
+
+    @Transactional
+    public void updateRole(User owner, UUID serverId, UUID userId,
+                           ServerDtos.UpdateMemberRoleRequest request) {
+        Server server = requireOwner(serverId, owner.getId());
+        if (server.getOwnerId().equals(userId)) {
+            throw new ApiException(ErrorCode.CANNOT_REMOVE_OWNER);
+        }
+        ServerMember member = memberRepository.findByServerIdAndUserId(serverId, userId)
+                .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
+        member.changeRole(request.role());
     }
 
     private void requireMember(UUID serverId, UUID userId) {

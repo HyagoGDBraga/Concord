@@ -2,6 +2,7 @@ package app.concord.server;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.Pattern;
 
 import java.time.Instant;
 import java.util.List;
@@ -49,6 +50,12 @@ public final class ServerDtos {
             String username
     ) {
     }
+
+        public record UpdateMemberRoleRequest(
+            @Pattern(regexp = "ADMIN|MEMBER", message = "Cargo inválido")
+            String role
+        ) {
+        }
 
     public record MemberResponse(UserDtos.PublicUserResponse user, String role,
                                  Instant joinedAt) {

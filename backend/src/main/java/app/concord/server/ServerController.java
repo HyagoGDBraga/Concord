@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -83,6 +84,16 @@ public class ServerController {
             @PathVariable UUID serverId,
             @PathVariable UUID userId) {
         serverService.removeMember(me(principal), serverId, userId);
+    }
+
+    @PatchMapping("/{serverId}/members/{userId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void updateRole(
+            @AuthenticationPrincipal ConcordUserDetails principal,
+            @PathVariable UUID serverId,
+            @PathVariable UUID userId,
+            @Valid @RequestBody ServerDtos.UpdateMemberRoleRequest request) {
+        serverService.updateRole(me(principal), serverId, userId, request);
     }
 
     private User me(ConcordUserDetails principal) {
