@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ApiError, api, errorMessage } from "@/lib/apiClient";
 import { useSession } from "@/lib/session";
+import { useTheme } from "@/lib/theme";
 import type { Me, SessionInfo } from "@/lib/types";
 import {
   Alert,
@@ -19,6 +20,7 @@ import {
 export default function SettingsPage() {
   return (
     <div className="space-y-6">
+      <AppearanceSection />
       <ProfileSection />
       <DataSection />
       <PasswordSection />
@@ -26,6 +28,39 @@ export default function SettingsPage() {
       <SessionsSection />
       <DangerSection />
     </div>
+  );
+}
+
+/* ------------------------------------------------------------- aparencia */
+
+function AppearanceSection() {
+  const { theme, setTheme } = useTheme();
+
+  const temas = [
+    { id: "terminal" as const, nome: "Terminal", desc: "Fonte bitmap, fósforo sobre grafite" },
+    { id: "classic" as const, nome: "Classic", desc: "Cinza-azul, mais discreto" },
+  ];
+
+  return (
+    <Card title="Aparência" description="A escolha fica salva neste navegador.">
+      <div className="grid gap-3 sm:grid-cols-2">
+        {temas.map((opcao) => (
+          <button
+            key={opcao.id}
+            type="button"
+            onClick={() => setTheme(opcao.id)}
+            className={`rounded border p-4 text-left transition ${
+              theme === opcao.id
+                ? "border-amber bg-ink"
+                : "border-line bg-ink/40 hover:border-muted"
+            }`}
+          >
+            <span className="display block text-sm">{opcao.nome}</span>
+            <span className="mt-1 block text-xs text-muted">{opcao.desc}</span>
+          </button>
+        ))}
+      </div>
+    </Card>
   );
 }
 
