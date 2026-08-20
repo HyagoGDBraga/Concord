@@ -35,6 +35,13 @@ export async function fetchIceConfig(): Promise<RTCIceServer[]> {
 
 export interface PeerCallbacks {
   onIceCandidate: (candidate: RTCIceCandidateInit) => void;
+  /**
+   * Emite uma descricao (oferta ou resposta) gerada pelo proprio navegador.
+   *
+   * Com negociacao perfeita, quem decide QUANDO renegociar e o navegador, pelo
+   * evento `negotiationneeded`. A aplicacao so transporta o que sair daqui.
+   */
+  onDescription?: (description: RTCSessionDescriptionInit) => void;
   onRemoteStream: (stream: MediaStream) => void;
   onStateChange: (state: RTCPeerConnectionState) => void;
   onNegotiationNeeded?: () => void;
@@ -59,14 +66,40 @@ export class PeerConnection {
   private readonly pc: RTCPeerConnection;
   private readonly pendingCandidates: RTCIceCandidateInit[] = [];
   private remoteDescriptionSet = false;
-  private readonly remoteStream = new MediaStream();
+  private remoteTracks: MediaStreamTrack[] = [];
   private localStream: MediaStream | null = null;
   private screenTrack: MediaStreamTrack | null = null;
   /** Trilha da camera guardada durante o compartilhamento, para ser restaurada. */
   private cameraTrack: MediaStreamTrack | null = null;
   private onScreenShareEnded: (() => void) | null = null;
 
-  constructor(iceServers: RTCIceServer[], callbacks: PeerCallbacks) {
+  /* ------------------------------------------------ negociacao perfeita */
+
+  /**
+   * Quem cede em caso de colisao.
+   *
+   * Quando os dois lados ofertam ao mesmo tempo (o que acontece quando duas
+   * pessoas ligam a camera no mesmo instante), alguem precisa desistir da
+   * propria oferta e aceitar a do outro. Sem isso a conexao trava em
+   * "have-local-offer" dos dois lados e nenhuma midia passa — que e
+   * exatamente o sintoma de "compartilhei e nao apareceu nada".
+   *
+   * A escolha e deterministica: quem tem o id menor e o educado. Nao pode ser
+   * aleatoria, senao os dois lados poderiam se considerar educados.
+   */
+  private readonly polite: boolean;
+
+  /** Verdadeiro enquanto este lado esta montando uma oferta. */
+  private makingOffer = false;
+
+  /** Oferta descartada por colisao; os candidatos ICE dela devem ser ignorados. */
+  private ignoreOffer = false;
+
+  private readonly callbacks: PeerCallbacks;
+
+  constructor(iceServers: RTCIceServer[], callbacks: PeerCallbacks, polite = true) {
+    this.polite = polite;
+    this.callbacks = callbacks;
     this.pc = new RTCPeerConnection({
       iceServers,
       // "all" permite caminho direto quando possivel e so cai no relay se
@@ -83,19 +116,61 @@ export class PeerConnection {
     };
 
     this.pc.ontrack = (event) => {
-      if (!this.remoteStream.getTracks().some((track) => track.id === event.track.id)) {
-        this.remoteStream.addTrack(event.track);
+      if (!this.remoteTracks.some((track) => track.id === event.track.id)) {
+        this.remoteTracks.push(event.track);
       }
-      callbacks.onRemoteStream(this.remoteStream);
+
+      // Um MediaStream NOVO a cada trilha, de proposito.
+      //
+      // Reaproveitar o mesmo objeto e o que fazia o compartilhamento de tela
+      // nao aparecer: o <video> ja tinha aquele stream em srcObject, entao o
+      // React nao reatribuia nada e o elemento continuava exibindo so o audio
+      // que existia quando ele foi montado. Trocando a identidade do objeto, a
+      // atribuicao acontece e o video aparece.
+      //
+      // Trilhas que terminaram sao descartadas: quem para de compartilhar deixa
+      // uma trilha morta que manteria o elemento de video na tela, congelado.
+      this.remoteTracks = this.remoteTracks.filter(
+        (track) => track.readyState !== "ended",
+      );
+      callbacks.onRemoteStream(new MediaStream(this.remoteTracks));
     };
+
+    // Trilha remota encerrada (o outro lado parou de compartilhar): republica o
+    // stream sem ela, para o elemento de video sair da tela em vez de congelar
+    // no ultimo quadro.
+    this.pc.addEventListener("track", (event) => {
+      event.track.addEventListener("ended", () => {
+        this.remoteTracks = this.remoteTracks.filter(
+          (track) => track.id !== event.track.id,
+        );
+        callbacks.onRemoteStream(new MediaStream(this.remoteTracks));
+      });
+    });
 
     this.pc.onconnectionstatechange = () => {
       callbacks.onStateChange(this.pc.connectionState);
     };
 
-    if (callbacks.onNegotiationNeeded) {
-      this.pc.onnegotiationneeded = callbacks.onNegotiationNeeded;
-    }
+    // O navegador avisa sozinho quando a sessao precisa ser renegociada —
+    // ao acrescentar uma trilha, por exemplo. Chamar createOffer na mao, como
+    // antes, corria o risco de faze-lo no estado errado; aqui isso nao
+    // acontece porque o evento so dispara quando ha o que negociar.
+    this.pc.onnegotiationneeded = async () => {
+      try {
+        this.makingOffer = true;
+        await this.pc.setLocalDescription();
+        if (this.pc.localDescription) {
+          this.callbacks.onDescription?.(this.pc.localDescription.toJSON());
+        }
+      } catch (erro) {
+        console.error("[webrtc] falha ao criar oferta", erro);
+      } finally {
+        this.makingOffer = false;
+      }
+      callbacks.onNegotiationNeeded?.();
+    };
+
     this.onScreenShareEnded = callbacks.onScreenShareEnded ?? null;
   }
 
@@ -152,16 +227,60 @@ export class PeerConnection {
     return this.pc.localDescription.toJSON();
   }
 
-  async setRemoteDescription(description: RTCSessionDescriptionInit): Promise<void> {
+  /**
+   * Aplica uma descricao recebida, resolvendo colisao quando houver.
+   *
+   * Substitui o par createOffer/createAnswer manual. A aplicacao entrega o que
+   * chegou e este metodo decide o que fazer:
+   *
+   *  - oferta recebida em estado limpo    -> responde
+   *  - oferta recebida durante a propria  -> se educado, cede e responde;
+   *    oferta (colisao)                      se nao, ignora a do outro
+   *  - resposta                           -> aplica
+   *
+   * Devolve a resposta a ser enviada, ou null quando nao ha o que responder.
+   */
+  async applyRemoteDescription(
+    description: RTCSessionDescriptionInit,
+  ): Promise<RTCSessionDescriptionInit | null> {
+    const ehOferta = description.type === "offer";
+
+    // "Pronto para receber oferta" cobre o caso de estarmos montando a nossa:
+    // o estado ainda seria "stable", mas ha uma oferta em voo.
+    const prontoParaOferta =
+      !this.makingOffer && this.pc.signalingState === "stable";
+
+    const colisao = ehOferta && !prontoParaOferta;
+
+    // O lado impaciente descarta a oferta do outro e mantem a sua. O educado
+    // faz o contrario. Com a regra deterministica, exatamente um dos dois cede.
+    this.ignoreOffer = !this.polite && colisao;
+    if (this.ignoreOffer) {
+      console.info("[webrtc] oferta ignorada por colisão (lado impaciente)");
+      return null;
+    }
+
     await this.pc.setRemoteDescription(new RTCSessionDescription(description));
     this.remoteDescriptionSet = true;
 
-    // Agora os candidatos que chegaram cedo demais podem ser aplicados.
+    // Candidatos que chegaram antes da descricao agora podem ser aplicados.
     for (const candidate of this.pendingCandidates.splice(0)) {
       await this.pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {
         // Candidato invalido nao derruba a chamada: os outros ainda servem.
       });
     }
+
+    if (!ehOferta) {
+      return null;
+    }
+    // setLocalDescription sem argumento cria a resposta apropriada ao estado.
+    await this.pc.setLocalDescription();
+    return this.pc.localDescription?.toJSON() ?? null;
+  }
+
+  /** Mantido para o fluxo de chamada privada, que negocia manualmente. */
+  async setRemoteDescription(description: RTCSessionDescriptionInit): Promise<void> {
+    await this.applyRemoteDescription(description);
   }
 
   async addIceCandidate(candidate: RTCIceCandidateInit): Promise<void> {
@@ -171,7 +290,13 @@ export class PeerConnection {
     }
     await this.pc
       .addIceCandidate(new RTCIceCandidate(candidate))
-      .catch(() => {});
+      .catch((erro) => {
+        // Candidatos da oferta descartada na colisao chegam depois e falham.
+        // Ignorar so nesse caso; nos demais, o erro interessa.
+        if (!this.ignoreOffer) {
+          console.warn("[webrtc] candidato ICE recusado", erro);
+        }
+      });
   }
 
   /** Liga ou desliga o microfone sem derrubar a negociacao. */

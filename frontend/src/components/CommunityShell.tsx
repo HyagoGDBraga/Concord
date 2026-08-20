@@ -1,6 +1,9 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
+import { MemberList } from "@/components/MemberList";
+import { PlusIcon } from "@/components/icons";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/apiClient";
@@ -226,6 +229,16 @@ export function CommunityShell({
   return (
     <div className="community-frame">
       <aside className="community-rail" aria-label="Servidores">
+        {/* Concorde: o primeiro aviao supersonico de linha, de onde vem o nome. */}
+        <Link href="/conversations" className="rail-logo" title="Concord — início">
+          <Image
+            src="/concord-logo.png"
+            alt="Concord"
+            width={44}
+            height={44}
+            priority
+          />
+        </Link>
         <Link href="/" className="community-mark" aria-label="Ir para o inicio">
           C
         </Link>
@@ -242,23 +255,36 @@ export function CommunityShell({
             {initials(item.name)}
           </button>
         ))}
-      <button type="button" className="community-orb add-orb" onClick={() => { setModal("server"); setModalValue(""); }} title="Criar servidor">
-          +
+        {/* Alvo de 44px: o "+" anterior tinha metade disso e era dificil de
+            acertar, ainda mais no toque. */}
+        <button
+          type="button"
+          className="community-orb add-orb icon-button"
+          onClick={() => { setModal("server"); setModalValue(""); }}
+          title="Criar servidor"
+          aria-label="Criar servidor"
+        >
+          <PlusIcon size={22} />
         </button>
       </aside>
 
       <aside className="channel-sidebar" aria-label="Canais do servidor">
+        {/* O TypeScript nao conseguia provar que 'community' existe aqui: o
+            fluxo depende de uma verificacao feita antes, e um retorno
+            antecipado num ramo diferente. O encadeamento opcional resolve sem
+            afirmar o que nao esta garantido — se a comunidade ainda nao
+            carregou, a barra aparece vazia em vez de quebrar. */}
         <div className="server-heading" ref={menuRef}>
           <div>
             <p className="eyebrow">Servidor</p>
-            <h1>{community.name}</h1>
+            <h1>{community?.name ?? "Servidor"}</h1>
           </div>
           <button type="button" className="server-menu" onClick={() => setMenuOpen((open) => !open)} aria-label="Abrir menu do servidor">
             ...
           </button>
           {menuOpen && (
             <div className="server-popover">
-              <strong>{community.name}</strong>
+              <strong>{community?.name ?? "Servidor"}</strong>
               <span>Espaço compartilhado</span>
               <button type="button" className="popover-action" onClick={() => { setModal("member"); setModalValue(""); }}>
                 + adicionar membro
@@ -280,12 +306,20 @@ export function CommunityShell({
         <div className="channel-group">
           <div className="channel-group-title">
             <span>CANAIS</span>
-            <button type="button" onClick={() => { setModal("channel"); setModalValue(""); }} aria-label="Criar canal">+</button>
+            <button
+              type="button"
+              className="icon-button icon-button-sm"
+              onClick={() => { setModal("channel"); setModalValue(""); }}
+              aria-label="Criar canal"
+              title="Criar canal"
+            >
+              <PlusIcon size={18} />
+            </button>
           </div>
-          {community.channels.map((channel) => (
+          {(community?.channels ?? []).map((channel) => (
             <div key={channel.name}>
               <Link
-                href={community.id && channel.id
+                href={community?.id && channel.id
                   ? `/servers/${community.id}/channels/${channel.id}`
                   : "/conversations"}
                 className={`channel-link ${pathname.includes(channel.id ?? "__missing__") ? "is-current" : ""}`}
@@ -294,17 +328,29 @@ export function CommunityShell({
                 <span className="channel-name">{channel.name}</span>
               </Link>
               {channel.kind === "voice" && channel.id && (
-                <div className="voice-channel-participants" aria-label="Pessoas na sala de voz">
+                <ul className="voice-channel-participants" aria-label="Pessoas na sala de voz">
                   {Array.from(voiceParticipantsByChannel.get(channel.id) ?? []).map((participantId) => {
                     const member = members.find((item) => item.user.id === participantId);
-                    const label = member?.user.displayName ?? member?.user.username ?? participantId.slice(0, 6);
+                    const label =
+                      member?.user.displayName ??
+                      member?.user.username ??
+                      `Membro ${participantId.slice(0, 6)}`;
                     return (
-                      <span key={participantId} className="voice-channel-participant" title={label}>
-                        {member?.user.avatarUrl ? <img src={member.user.avatarUrl} alt="" /> : initials(label)}
-                      </span>
+                      // Avatar E nome, um ao lado do outro. So o avatar exigia
+                      // passar o mouse para descobrir quem esta na sala — que e
+                      // justamente a informacao que a barra lateral existe para
+                      // dar de relance.
+                      <li key={participantId} className="voice-participant-row" title={label}>
+                        <span className="voice-participant-avatar">
+                          {member?.user.avatarUrl
+                            ? <img src={member.user.avatarUrl} alt="" />
+                            : initials(label)}
+                        </span>
+                        <span className="voice-participant-name">{label}</span>
+                      </li>
                     );
                   })}
-                </div>
+                </ul>
               )}
             </div>
           ))}
@@ -320,6 +366,10 @@ export function CommunityShell({
       </aside>
 
       <main className="community-content">{children}</main>
+
+      {/* Lista de membros a direita. So aparece dentro de um servidor — na
+          area de mensagens diretas nao existe "membro do servidor". */}
+      {community?.id && <MemberList serverId={community.id} />}
 
       {modal && (
         <div className="community-modal-backdrop" onMouseDown={() => setModal(null)}>

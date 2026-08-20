@@ -42,7 +42,9 @@ export type RealtimeEventType =
   | "CALL_ACCEPTED"
   | "CALL_ENDED"
   | "CALL_SIGNAL"
-  | "VOICE_SIGNAL";
+  | "VOICE_SIGNAL"
+  | "VOICE_USER_STATE"
+  | "SERVER_MEMBER_JOINED";
 
 export interface RealtimeEvent<T = unknown> {
   type: RealtimeEventType;
@@ -113,6 +115,9 @@ interface RealtimeState {
    */
   sendCallSignal: (callId: string, type: SignalType, payload: unknown) => void;
   sendVoicePresence: (serverId: string, channelId: string, joining: boolean) => void;
+  /** Anuncia mudo, camera e compartilhamento de tela aos demais da sala. */
+  sendVoiceState: (serverId: string, channelId: string,
+    state: { muted: boolean; camera: boolean; screen: boolean }) => void;
   sendVoiceSignal: (serverId: string, channelId: string, targetUserId: string,
                     type: SignalType, payload: unknown) => void;
   onlineUserIds: Set<string>;
@@ -198,6 +203,21 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       client.publish({
         destination: `/app/servers/${serverId}/channels/${channelId}/voice`,
         body: JSON.stringify({ type: joining ? "JOIN" : "LEAVE" }),
+      });
+    },
+    [],
+  );
+
+  const sendVoiceState = useCallback(
+    (serverId: string, channelId: string,
+     state: { muted: boolean; camera: boolean; screen: boolean }) => {
+      const client = clientRef.current;
+      if (!client?.connected) {
+        return;
+      }
+      client.publish({
+        destination: `/app/servers/${serverId}/channels/${channelId}/voice`,
+        body: JSON.stringify({ type: "STATE", payload: state }),
       });
     },
     [],
@@ -300,9 +320,9 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<RealtimeState>(
     () => ({ connected, subscribe, sendTyping, sendCallSignal, sendVoicePresence,
-      sendVoiceSignal, onlineUserIds, voiceParticipantsByChannel }),
+      sendVoiceState, sendVoiceSignal, onlineUserIds, voiceParticipantsByChannel }),
     [connected, subscribe, sendTyping, sendCallSignal, sendVoicePresence,
-      sendVoiceSignal, onlineUserIds, voiceParticipantsByChannel],
+      sendVoiceState, sendVoiceSignal, onlineUserIds, voiceParticipantsByChannel],
   );
 
   return (
