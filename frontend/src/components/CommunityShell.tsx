@@ -283,31 +283,30 @@ export function CommunityShell({
             <button type="button" onClick={() => { setModal("channel"); setModalValue(""); }} aria-label="Criar canal">+</button>
           </div>
           {community.channels.map((channel) => (
-            <Link
-              key={channel.name}
-              href={community.id && channel.id
-                ? `/servers/${community.id}/channels/${channel.id}`
-                : "/conversations"}
-              className={`channel-link ${pathname.includes(channel.id ?? "__missing__") ? "is-current" : ""}`}
-            >
-              <span className="channel-symbol">{channel.kind === "voice" ? "◖" : "#"}</span>
-              <span className="channel-name">{channel.name}</span>
-            </Link>
-            {channel.kind === "voice" && channel.id && (
-              <div className="voice-channel-participants" aria-label="Pessoas na sala de voz">
-                {(Array.from(voiceParticipantsByChannel.get(channel.id) ?? [])).map((participantId) => {
-                  const member = members.find((item) => item.user.id === participantId);
-                  const label = member?.user.displayName ?? member?.user.username ?? participantId.slice(0, 6);
-                  return (
-                    <span key={participantId} className="voice-channel-participant" title={label}>
-                      {member?.user.avatarUrl ? (
-                        <img src={member.user.avatarUrl} alt="" />
-                      ) : initials(label)}
-                    </span>
-                  );
-                })}
-              </div>
-            )}
+            <div key={channel.name}>
+              <Link
+                href={community.id && channel.id
+                  ? `/servers/${community.id}/channels/${channel.id}`
+                  : "/conversations"}
+                className={`channel-link ${pathname.includes(channel.id ?? "__missing__") ? "is-current" : ""}`}
+              >
+                <span className="channel-symbol">{channel.kind === "voice" ? "◖" : "#"}</span>
+                <span className="channel-name">{channel.name}</span>
+              </Link>
+              {channel.kind === "voice" && channel.id && (
+                <div className="voice-channel-participants" aria-label="Pessoas na sala de voz">
+                  {Array.from(voiceParticipantsByChannel.get(channel.id) ?? []).map((participantId) => {
+                    const member = members.find((item) => item.user.id === participantId);
+                    const label = member?.user.displayName ?? member?.user.username ?? participantId.slice(0, 6);
+                    return (
+                      <span key={participantId} className="voice-channel-participant" title={label}>
+                        {member?.user.avatarUrl ? <img src={member.user.avatarUrl} alt="" /> : initials(label)}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           ))}
         </div>
 
