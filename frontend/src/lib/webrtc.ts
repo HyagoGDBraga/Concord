@@ -116,15 +116,19 @@ export class PeerConnection {
   }
 
   async createOffer(): Promise<RTCSessionDescriptionInit> {
-    const offer = await this.pc.createOffer();
-    await this.pc.setLocalDescription(offer);
-    return offer;
+    await this.pc.setLocalDescription();
+    if (!this.pc.localDescription) {
+      throw new Error("O navegador nao criou a oferta WebRTC");
+    }
+    return this.pc.localDescription.toJSON();
   }
 
   async createAnswer(): Promise<RTCSessionDescriptionInit> {
-    const answer = await this.pc.createAnswer();
-    await this.pc.setLocalDescription(answer);
-    return answer;
+    await this.pc.setLocalDescription();
+    if (!this.pc.localDescription) {
+      throw new Error("O navegador nao criou a resposta WebRTC");
+    }
+    return this.pc.localDescription.toJSON();
   }
 
   async setRemoteDescription(description: RTCSessionDescriptionInit): Promise<void> {

@@ -50,10 +50,37 @@ function readCsrfToken(): string | null {
     return null;
   }
   const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
-  return match ? decodeURIComponent(match[1]) : null;
+  return match?.[1] === undefined ? null : decodeURIComponent(match[1]);
+}
+
+function clearCsrfToken(): void {
+  if (typeof document !== "undefined") {
+    document.cookie = "XSRF-TOKEN=; Max-Age=0; Path=/";
+  }
 }
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+/** Garante que a primeira mutacao tambem tenha o cookie publico do CSRF. */
+async function ensureCsrfToken(): Promise<string | null> {
+  const existing = readCsrfToken();
+  if (existing) {
+    return existing;
+  }
+
+  try {
+    // Mesmo uma resposta 401 materializa o cookie XSRF-TOKEN no backend.
+    await fetch(`${config.apiUrl}/auth/me`, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      credentials: "same-origin",
+    });
+  } catch {
+    // A mutacao seguinte devolve o erro real se a API estiver indisponivel.
+  }
+
+  return readCsrfToken();
+}
 
 async function request<T>(
   method: string,
@@ -66,19 +93,38 @@ async function request<T>(
     headers["Content-Type"] = "application/json";
   }
   if (MUTATING_METHODS.has(method)) {
-    const csrf = readCsrfToken();
+    const csrf = await ensureCsrfToken();
     if (csrf) {
       headers["X-XSRF-TOKEN"] = csrf;
     }
   }
 
-  const response = await fetch(`${config.apiUrl}${path}`, {
-    method,
-    headers,
-    // Mesma origem via Caddy: o cookie de sessao viaja sem CORS.
-    credentials: "same-origin",
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  let response = await fetch(`${config.apiUrl}${path}`, {
+      method,
+      headers,
+      // Mesma origem via Caddy: o cookie de sessao viaja sem CORS.
+      credentials: "same-origin",
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+
+  // Um cookie CSRF antigo pode sobreviver a reinícios do ambiente. Renova-o
+  // uma vez quando o backend rejeitar a mutacao, antes de expor o 403.
+  if (response.status === 403 && MUTATING_METHODS.has(method)) {
+    clearCsrfToken();
+    const csrf = await ensureCsrfToken();
+    const retryHeaders = { ...headers };
+    if (csrf) {
+      retryHeaders["X-XSRF-TOKEN"] = csrf;
+    } else {
+      delete retryHeaders["X-XSRF-TOKEN"];
+    }
+    response = await fetch(`${config.apiUrl}${path}`, {
+      method,
+      headers: retryHeaders,
+      credentials: "same-origin",
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  }
 
   if (response.status === 204) {
     return undefined as T;

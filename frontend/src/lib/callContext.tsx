@@ -298,9 +298,16 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
     // Quem ligou e quem oferta. Fixado no servidor, elimina glare.
     const peer = peerRef.current;
-    if (peer && user && accepted.callerId === user.id) {
+    if (!peer || !user || accepted.callerId !== user.id) {
+      return;
+    }
+    try {
       const offer = await peer.createOffer();
       sendCallSignal(accepted.id, "OFFER", offer);
+    } catch (err) {
+      setError(mediaErrorMessage(err));
+      await api.post(`/calls/${accepted.id}/end`).catch(() => {});
+      teardown();
     }
   });
 
