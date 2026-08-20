@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/apiClient";
+import { useRealtime } from "@/lib/realtime";
 
 type Channel = { id?: string; name: string; kind: "text" | "voice" };
 type Community = { id?: string; name: string; channels: Channel[] };
@@ -63,6 +64,7 @@ export function CommunityShell({
   const [modalChannelType, setModalChannelType] = useState<"TEXT" | "VOICE">("TEXT");
   const [toast, setToast] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const { voiceActiveChannels } = useRealtime();
 
   useEffect(() => {
     let mounted = true;
@@ -289,7 +291,10 @@ export function CommunityShell({
               className={`channel-link ${pathname.includes(channel.id ?? "__missing__") ? "is-current" : ""}`}
             >
               <span className="channel-symbol">{channel.kind === "voice" ? "◖" : "#"}</span>
-              {channel.name}
+              <span className="channel-name">{channel.name}</span>
+              {channel.kind === "voice" && channel.id && voiceActiveChannels.has(channel.id) && (
+                <span className="voice-presence-dot" title="Pessoas na sala de voz" aria-label="Pessoas na sala de voz" />
+              )}
             </Link>
           ))}
         </div>

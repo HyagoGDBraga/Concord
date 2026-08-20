@@ -116,6 +116,7 @@ interface RealtimeState {
   sendVoiceSignal: (serverId: string, channelId: string, targetUserId: string,
                     type: SignalType, payload: unknown) => void;
   onlineUserIds: Set<string>;
+  voiceActiveChannels: Set<string>;
 }
 
 const RealtimeContext = createContext<RealtimeState | null>(null);
@@ -129,6 +130,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const { user } = useSession();
   const [connected, setConnected] = useState(false);
   const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
+  const [voiceActiveChannels, setVoiceActiveChannels] = useState<Set<string>>(new Set());
 
   const clientRef = useRef<Client | null>(null);
   // Ouvintes fora do estado: mudam a cada montagem de tela e nao devem
@@ -145,6 +147,21 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
         } else {
           next.delete(presence.userId);
         }
+        return next;
+      });
+    }
+    if (event.type === "VOICE_ROOM_STATE" || event.type === "VOICE_USER_JOINED") {
+      const payload = event.payload as { channelId: string; participantIds?: string[] };
+      if ((payload.participantIds?.length ?? 1) > 0) {
+        setVoiceActiveChannels((current) => new Set(current).add(payload.channelId));
+      }
+    }
+    if (event.type === "VOICE_USER_LEFT") {
+      const payload = event.payload as { channelId: string };
+      // A later room-state event will restore this if other participants remain.
+      setVoiceActiveChannels((current) => {
+        const next = new Set(current);
+        next.delete(payload.channelId);
         return next;
       });
     }
@@ -264,9 +281,9 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<RealtimeState>(
     () => ({ connected, subscribe, sendTyping, sendCallSignal, sendVoicePresence,
-      sendVoiceSignal, onlineUserIds }),
+      sendVoiceSignal, onlineUserIds, voiceActiveChannels }),
     [connected, subscribe, sendTyping, sendCallSignal, sendVoicePresence,
-      sendVoiceSignal, onlineUserIds],
+      sendVoiceSignal, onlineUserIds, voiceActiveChannels],
   );
 
   return (

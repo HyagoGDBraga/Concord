@@ -184,6 +184,150 @@ h3 {
   background: #e08b67;
 }
 
+.voice-room-controls {
+  display: flex;
+  gap: 6px;
+}
+
+.voice-room-controls button {
+  min-width: 52px;
+  padding: 8px 9px;
+  border: 1px solid #46515c;
+  border-radius: 4px;
+  color: var(--color-paper);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.voice-room-controls button:hover {
+  border-color: var(--color-amber);
+  color: var(--color-amber);
+}
+
+.voice-presence-dot {
+  width: 7px;
+  height: 7px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--color-mint);
+  box-shadow: 0 0 0 3px #83aebb1a;
+}
+
+.channel-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.channel-group-title button {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid #333333;
+  border-radius: 5px;
+  color: #00e5ff;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.channel-group-title button:hover {
+  border-color: #00e5ff;
+  background: #292929;
+}
+
+/* OLED direction: neutral black surfaces, with restrained cyan focus. */
+@theme {
+  --color-ink: #121212;
+  --color-panel: #1e1e1e;
+  --color-line: #333333;
+  --color-paper: #eeeeee;
+  --color-muted: #9a9a9a;
+  --color-amber: #00e5ff;
+  --color-mint: #9b8cff;
+  --color-coral: #ff7b72;
+}
+
+body,
+.community-frame,
+.community-content {
+  background-color: #121212;
+}
+
+.community-frame {
+  background: #121212;
+}
+
+.community-rail {
+  background: #0d0d0d;
+  border-right-color: #333333;
+}
+
+.channel-sidebar {
+  background: #1e1e1e;
+  border-right-color: #333333;
+}
+
+.community-mark,
+.community-orb {
+  border-color: #333333;
+  background: #1e1e1e;
+}
+
+.community-mark {
+  background: #00e5ff;
+  color: #121212;
+}
+
+.community-orb:hover,
+.community-orb.is-active,
+.community-mark:hover,
+.channel-link:hover,
+.channel-link.is-current {
+  border-color: #00e5ff;
+  background: #292929;
+  color: #eeeeee;
+}
+
+.community-orb.is-active {
+  box-shadow: 0 0 0 3px #00e5ff38;
+}
+
+.home-tile,
+.voice-room {
+  border-color: #333333;
+  background: #1e1e1e;
+}
+
+.home-tile:hover {
+  border-color: #00e5ff;
+  background: #292929;
+}
+
+.home-tile-main {
+  border-color: #4e3d70;
+  background: linear-gradient(135deg, #29243a, #1e1e1e 72%);
+}
+
+.community-modal,
+.server-popover {
+  border-color: #444444;
+  background: #1e1e1e;
+}
+
+.community-modal input,
+.community-modal select,
+.channel-composer input {
+  border-color: #333333;
+  background: #121212;
+}
+
+.modal-actions .modal-submit,
+.voice-room-button {
+  background: #00e5ff;
+  color: #121212;
+}
+
 .rail-rule {
   width: 28px;
   border-top: 1px solid #28344b;

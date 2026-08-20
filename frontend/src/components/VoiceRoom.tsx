@@ -14,10 +14,15 @@ export function VoiceRoom({ serverId, channelId }: { serverId: string; channelId
   const { connected, sendVoicePresence, sendVoiceSignal } = useRealtime();
   const [joined, setJoined] = useState(false);
   const [participants, setParticipants] = useState<string[]>([]);
+  const [micEnabled, setMicEnabled] = useState(true);
+  const [cameraEnabled, setCameraEnabled] = useState(false);
+  const [sharingScreen, setSharingScreen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const peersRef = useRef<Map<string, PeerConnection>>(new Map());
   const audioRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   const localStreamRef = useRef<MediaStream | null>(null);
+  const cameraTrackRef = useRef<MediaStreamTrack | null>(null);
+  const screenTrackRef = useRef<MediaStreamTrack | null>(null);
 
   function removePeer(userId: string) {
     peersRef.current.get(userId)?.close();
@@ -54,6 +59,10 @@ export function VoiceRoom({ serverId, channelId }: { serverId: string; channelId
       localStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
     }
     peer.attachLocalStream(localStreamRef.current);
+    const videoTrack = cameraTrackRef.current ?? screenTrackRef.current;
+    if (videoTrack) {
+      peer.attachVideoTrack(videoTrack, localStreamRef.current);
+    }
     setParticipants((current) => current.includes(userId) ? current : [...current, userId]);
     if (makeOffer) {
       sendVoiceSignal(serverId, channelId, userId, "OFFER", await peer.createOffer());
@@ -113,6 +122,8 @@ export function VoiceRoom({ serverId, channelId }: { serverId: string; channelId
       peersRef.current.clear();
       localStreamRef.current?.getTracks().forEach((track) => track.stop());
       localStreamRef.current = null;
+      cameraTrackRef.current = null;
+      screenTrackRef.current = null;
       audioRef.current.forEach((audio) => audio.pause());
       audioRef.current.clear();
       setParticipants([]);
@@ -133,6 +144,88 @@ export function VoiceRoom({ serverId, channelId }: { serverId: string; channelId
     }
   }
 
+  function renegotiate() {
+    for (const [userId, peer] of peersRef.current) {
+      void peer.createOffer().then((offer) => {
+        sendVoiceSignal(serverId, channelId, userId, "OFFER", offer);
+      }).catch(() => setError("Não foi possível atualizar o vídeo da sala."));
+    }
+  }
+
+  function toggleMic() {
+    const next = !micEnabled;
+    localStreamRef.current?.getAudioTracks().forEach((track) => { track.enabled = next; });
+    setMicEnabled(next);
+  }
+
+  async function toggleCamera() {
+    if (!joined) {
+      return;
+    }
+    if (!cameraEnabled) {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      const track = stream.getVideoTracks()[0];
+      if (!track || !localStreamRef.current) {
+        return;
+      }
+      cameraTrackRef.current = track;
+      localStreamRef.current.addTrack(track);
+      for (const peer of peersRef.current.values()) {
+        if (!peer.replaceVideoTrack(track)) {
+          peer.attachVideoTrack(track, localStreamRef.current);
+        }
+      }
+      setCameraEnabled(true);
+      renegotiate();
+      return;
+    }
+    cameraTrackRef.current?.stop();
+    cameraTrackRef.current = null;
+    for (const peer of peersRef.current.values()) {
+      peer.replaceVideoTrack(screenTrackRef.current);
+    }
+    setCameraEnabled(false);
+    renegotiate();
+  }
+
+  async function toggleScreenShare() {
+    if (!joined) {
+      return;
+    }
+    if (!sharingScreen) {
+      const display = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+      const track = display.getVideoTracks()[0];
+      if (!track || !localStreamRef.current) {
+        return;
+      }
+      screenTrackRef.current = track;
+      track.addEventListener("ended", () => {
+        screenTrackRef.current = null;
+        setSharingScreen(false);
+        for (const peer of peersRef.current.values()) {
+          peer.replaceVideoTrack(cameraTrackRef.current);
+        }
+        renegotiate();
+      });
+      localStreamRef.current.addTrack(track);
+      for (const peer of peersRef.current.values()) {
+        if (!peer.replaceVideoTrack(track)) {
+          peer.attachVideoTrack(track, localStreamRef.current);
+        }
+      }
+      setSharingScreen(true);
+      renegotiate();
+    } else {
+      screenTrackRef.current?.stop();
+      screenTrackRef.current = null;
+      for (const peer of peersRef.current.values()) {
+        peer.replaceVideoTrack(cameraTrackRef.current);
+      }
+      setSharingScreen(false);
+      renegotiate();
+    }
+  }
+
   return (
     <div className={`voice-room ${joined ? "is-joined" : ""}`}>
       <div>
@@ -143,6 +236,19 @@ export function VoiceRoom({ serverId, channelId }: { serverId: string; channelId
       <button type="button" onClick={() => void toggle()} className="voice-room-button">
         {joined ? "Sair da sala" : "Entrar na voz"}
       </button>
+      {joined && (
+        <div className="voice-room-controls">
+          <button type="button" onClick={toggleMic} title={micEnabled ? "Silenciar microfone" : "Ativar microfone"}>
+            {micEnabled ? "Mic" : "Mic off"}
+          </button>
+          <button type="button" onClick={() => void toggleCamera()} title="Ligar ou desligar camera">
+            {cameraEnabled ? "Camera on" : "Camera"}
+          </button>
+          <button type="button" onClick={() => void toggleScreenShare()} title="Compartilhar tela">
+            {sharingScreen ? "Tela on" : "Tela"}
+          </button>
+        </div>
+      )}
       {error && <small>{error}</small>}
     </div>
   );

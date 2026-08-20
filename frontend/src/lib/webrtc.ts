@@ -122,6 +122,20 @@ export class PeerConnection {
     }
   }
 
+  attachVideoTrack(track: MediaStreamTrack, stream: MediaStream): void {
+    this.localStream = stream;
+    this.pc.addTrack(track, stream);
+  }
+
+  replaceVideoTrack(track: MediaStreamTrack | null): boolean {
+    const sender = this.pc.getSenders().find((candidate) => candidate.track?.kind === "video");
+    if (!sender) {
+      return false;
+    }
+    void sender.replaceTrack(track);
+    return true;
+  }
+
   async createOffer(): Promise<RTCSessionDescriptionInit> {
     await this.pc.setLocalDescription();
     if (!this.pc.localDescription) {
