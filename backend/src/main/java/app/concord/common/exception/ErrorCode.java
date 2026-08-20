@@ -54,6 +54,11 @@ public enum ErrorCode {
     MESSAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "Mensagem não encontrada"),
     NOT_MESSAGE_AUTHOR(HttpStatus.FORBIDDEN, "Só o autor pode alterar a mensagem"),
 
+    // --- servidores e canais
+    SERVER_NOT_FOUND(HttpStatus.NOT_FOUND, "Servidor não encontrado"),
+    CHANNEL_NOT_FOUND(HttpStatus.NOT_FOUND, "Canal não encontrado"),
+    CHANNEL_NAME_TAKEN(HttpStatus.CONFLICT, "Já existe um canal com esse nome"),
+
     // --- chamadas
     CALL_NOT_FOUND(HttpStatus.NOT_FOUND, "Chamada não encontrada"),
     CALL_NOT_RINGING(HttpStatus.CONFLICT, "Esta chamada não está mais tocando"),

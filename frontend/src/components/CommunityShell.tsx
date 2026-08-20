@@ -3,10 +3,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui";
+import { api } from "@/lib/apiClient";
 
 type Channel = { name: string; kind: "text" | "voice" };
-type Community = { name: string; channels: Channel[] };
+type Community = { id?: string; name: string; channels: Channel[] };
+
+type ServerResponse = {
+  id: string;
+  name: string;
+  channels: { name: string; type: string }[];
+};
 
 const DEFAULT_COMMUNITIES: Community[] = [
   {
@@ -52,42 +58,80 @@ export function CommunityShell({
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
-    const saved = window.localStorage.getItem(STORAGE_KEY);
-    if (!saved) {
-      return;
-    }
-    try {
-      const parsed = JSON.parse(saved) as Community[];
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        setCommunities(parsed);
+    let mounted = true;
+    void api.get<ServerResponse[]>("/servers").then((servers) => {
+      if (!mounted || servers.length === 0) {
+        return;
       }
-    } catch {
-      window.localStorage.removeItem(STORAGE_KEY);
-    }
+      const next = servers.map((server) => ({
+        id: server.id,
+        name: server.name,
+        channels: server.channels.map((channel) => ({
+          name: channel.name,
+          kind: channel.type.toLowerCase() === "voice" ? "voice" as const : "text" as const,
+        })),
+      }));
+      setCommunities(next);
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    }).catch(() => {
+      const saved = window.localStorage.getItem(STORAGE_KEY);
+      if (!saved) {
+        return;
+      }
+      try {
+        const parsed = JSON.parse(saved) as Community[];
+        if (mounted && Array.isArray(parsed) && parsed.length > 0) {
+          setCommunities(parsed);
+        }
+      } catch {
+        window.localStorage.removeItem(STORAGE_KEY);
+      }
+    });
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  function createCommunity() {
+  async function createCommunity() {
     const name = window.prompt("Nome do servidor");
     if (!name?.trim()) {
       return;
     }
-    const next = [
-      ...communities,
-      { name: name.trim(), channels: [{ name: "geral", kind: "text" as const }] },
-    ];
+    let next: Community[];
+    try {
+      const created = await api.post<ServerResponse>("/servers", { name: name.trim() });
+      next = [...communities, {
+        id: created.id,
+        name: created.name,
+        channels: created.channels.map((channel) => ({ name: channel.name, kind: "text" as const })),
+      }];
+    } catch {
+      next = [...communities, {
+        name: name.trim(),
+        channels: [{ name: "geral", kind: "text" as const }],
+      }];
+    }
     setCommunities(next);
     setActiveCommunity(next.length - 1);
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   }
 
-  function createChannel() {
+  async function createChannel() {
     const name = window.prompt("Nome do canal");
     if (!name?.trim() || !community) {
       return;
     }
+    const channelName = name.trim();
+    try {
+      if (community.id) {
+        await api.post(`/servers/${community.id}/channels`, { name: channelName, type: "TEXT" });
+      }
+    } catch {
+      // O fallback local mantém a interface utilizável durante a atualização da API.
+    }
     const next = communities.map((item, index) =>
       index === activeCommunity
-        ? { ...item, channels: [...item.channels, { name: name.trim(), kind: "text" as const }] }
+        ? { ...item, channels: [...item.channels, { name: channelName, kind: "text" as const }] }
         : item,
     );
     setCommunities(next);
