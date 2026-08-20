@@ -60,6 +60,8 @@ public enum ErrorCode {
     CHANNEL_NAME_TAKEN(HttpStatus.CONFLICT, "Já existe um canal com esse nome"),
     MEMBER_ALREADY_EXISTS(HttpStatus.CONFLICT, "Este usuário já é membro do servidor"),
     CANNOT_REMOVE_OWNER(HttpStatus.CONFLICT, "O proprietário não pode ser removido"),
+    INVITE_NOT_FOUND(HttpStatus.NOT_FOUND, "Convite não encontrado"),
+    INVITE_EXPIRED(HttpStatus.BAD_REQUEST, "Este convite expirou"),
 
     // --- chamadas
     CALL_NOT_FOUND(HttpStatus.NOT_FOUND, "Chamada não encontrada"),

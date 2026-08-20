@@ -180,6 +180,23 @@ export function CommunityShell({
     }
   }
 
+  async function createInvite() {
+    if (!community?.id) {
+      return;
+    }
+    const username = window.prompt("Username para convidar");
+    if (!username?.trim()) {
+      return;
+    }
+    try {
+      const invite = await api.post<{ token: string; expiresAt: string }>(
+        `/servers/${community.id}/invites`, { username: username.trim() });
+      window.alert(`Convite criado. Código: ${invite.token}\nExpira em ${new Date(invite.expiresAt).toLocaleDateString("pt-BR")}.`);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Não foi possível criar o convite");
+    }
+  }
+
   return (
     <div className="community-frame">
       <aside className="community-rail" aria-label="Servidores">
@@ -219,6 +236,9 @@ export function CommunityShell({
               <span>Espaço compartilhado</span>
               <button type="button" className="popover-action" onClick={() => void addMember()}>
                 + adicionar membro
+              </button>
+              <button type="button" className="popover-action" onClick={() => void createInvite()}>
+                ↗ convidar membro
               </button>
               {members.length > 0 && (
                 <div className="popover-members">

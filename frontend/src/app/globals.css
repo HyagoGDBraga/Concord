@@ -409,6 +409,60 @@ body {
   border-top: 1px solid #1f2b3e;
 }
 
+.invite-panel {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+  border: 1px solid #3c5265;
+  border-radius: 6px;
+  background: #14222c;
+}
+
+.invite-panel h3 {
+  margin-top: 6px;
+  font-size: 16px;
+}
+
+.invite-list {
+  display: grid;
+  gap: 8px;
+}
+
+.invite-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px;
+  border: 1px solid #2a4052;
+  border-radius: 4px;
+  background: #10202a;
+}
+
+.invite-row div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.invite-row span {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.invite-actions {
+  display: flex;
+  gap: 12px;
+  white-space: nowrap;
+}
+
+.invite-actions button:first-child {
+  color: var(--color-mint);
+}
+
+.invite-actions button:last-child {
+  color: var(--color-muted);
+}
+
 .home-bottom h3 {
   margin-top: 7px;
   font-size: 17px;

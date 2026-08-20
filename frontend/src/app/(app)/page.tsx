@@ -2,7 +2,16 @@
 
 import { useSession } from "@/lib/session";
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { api } from "@/lib/apiClient";
 import { Badge } from "@/components/ui";
+
+type PendingInvite = {
+  id: string;
+  serverName: string;
+  inviterUsername: string;
+  expiresAt: string;
+};
 
 /**
  * Tela inicial da area autenticada.
@@ -13,6 +22,23 @@ import { Badge } from "@/components/ui";
  */
 export default function HomePage() {
   const { user } = useSession();
+  const [invites, setInvites] = useState<PendingInvite[]>([]);
+
+  useEffect(() => {
+    void api.get<{ items: PendingInvite[] }>("/server-invites")
+      .then((page) => setInvites(page.items))
+      .catch(() => setInvites([]));
+  }, []);
+
+  async function acceptInvite(id: string) {
+    await api.post(`/server-invites/${id}/accept`);
+    setInvites((current) => current.filter((invite) => invite.id !== id));
+  }
+
+  async function declineInvite(id: string) {
+    await api.delete(`/server-invites/${id}`);
+    setInvites((current) => current.filter((invite) => invite.id !== id));
+  }
   if (!user) {
     return null;
   }
@@ -51,6 +77,29 @@ export default function HomePage() {
           <span className="tile-arrow">→</span>
         </Link>
       </section>
+
+      {invites.length > 0 && (
+        <section className="invite-panel">
+          <div>
+            <p className="eyebrow">Convites pendentes</p>
+            <h3>Espaços que chegaram até você</h3>
+          </div>
+          <div className="invite-list">
+            {invites.map((invite) => (
+              <div key={invite.id} className="invite-row">
+                <div>
+                  <strong>{invite.serverName}</strong>
+                  <span>@{invite.inviterUsername} convidou você</span>
+                </div>
+                <div className="invite-actions">
+                  <button type="button" onClick={() => void acceptInvite(invite.id)}>Entrar</button>
+                  <button type="button" onClick={() => void declineInvite(invite.id)}>Recusar</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="home-bottom">
         <div>
