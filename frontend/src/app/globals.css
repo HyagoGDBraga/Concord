@@ -204,6 +204,23 @@ h3 {
   color: var(--color-amber);
 }
 
+.voice-room-video-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
+  width: min(100%, 520px);
+  margin-top: 12px;
+}
+
+.voice-room-video {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 1px solid #333333;
+  border-radius: 5px;
+  background: #0d0d0d;
+  object-fit: contain;
+}
+
 .voice-presence-dot {
   width: 7px;
   height: 7px;

@@ -170,7 +170,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       });
     }
     if (event.type === "VOICE_USER_LEFT") {
-      const payload = event.payload as { channelId: string };
+      const payload = event.payload as { channelId: string; userId: string };
       // A later room-state event will restore this if other participants remain.
       setVoiceParticipantsByChannel((current) => {
         const next = new Map(current);

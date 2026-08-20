@@ -65,8 +65,10 @@ public class VoiceSignalingController {
 
     private void leave(UUID channelId, UUID userId, CopyOnWriteArraySet<UUID> room) {
         room.remove(userId);
-        notifyOthers(room, userId, RealtimeEvent.VOICE_USER_LEFT,
-                Map.of("channelId", channelId, "userId", userId));
+        RealtimeEvent event = RealtimeEvent.of(RealtimeEvent.VOICE_USER_LEFT,
+            Map.of("channelId", channelId, "userId", userId));
+        notifyOthers(room, userId, event);
+        notifier.sendToUser(userId, event);
         if (room.isEmpty()) {
             rooms.remove(channelId, room);
         }
@@ -84,8 +86,13 @@ public class VoiceSignalingController {
 
     private void notifyOthers(CopyOnWriteArraySet<UUID> room, UUID excluded,
                               String type, Object payload) {
+        notifyOthers(room, excluded, RealtimeEvent.of(type, payload));
+    }
+
+    private void notifyOthers(CopyOnWriteArraySet<UUID> room, UUID excluded,
+                              RealtimeEvent event) {
         room.stream().filter(id -> !id.equals(excluded))
-                .forEach(id -> notifier.sendToUser(id, RealtimeEvent.of(type, payload)));
+                .forEach(id -> notifier.sendToUser(id, event));
     }
 
     private boolean isMember(UUID channelId, UUID userId) {

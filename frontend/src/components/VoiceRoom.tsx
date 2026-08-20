@@ -17,6 +17,7 @@ export function VoiceRoom({ serverId, channelId }: { serverId: string; channelId
   const [micEnabled, setMicEnabled] = useState(true);
   const [cameraEnabled, setCameraEnabled] = useState(false);
   const [sharingScreen, setSharingScreen] = useState(false);
+  const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
   const [error, setError] = useState<string | null>(null);
   const peersRef = useRef<Map<string, PeerConnection>>(new Map());
   const audioRef = useRef<Map<string, HTMLAudioElement>>(new Map());
@@ -29,6 +30,11 @@ export function VoiceRoom({ serverId, channelId }: { serverId: string; channelId
     peersRef.current.delete(userId);
     audioRef.current.get(userId)?.pause();
     audioRef.current.delete(userId);
+    setRemoteStreams((current) => {
+      const next = new Map(current);
+      next.delete(userId);
+      return next;
+    });
     setParticipants((current) => current.filter((id) => id !== userId));
   }
 
@@ -39,6 +45,7 @@ export function VoiceRoom({ serverId, channelId }: { serverId: string; channelId
     const peer = new PeerConnection(await fetchIceConfig(), {
       onIceCandidate: (candidate) => sendVoiceSignal(serverId, channelId, userId, "ICE_CANDIDATE", candidate),
       onRemoteStream: (stream) => {
+        setRemoteStreams((current) => new Map(current).set(userId, stream));
         let audio = audioRef.current.get(userId);
         if (!audio) {
           audio = new Audio();
@@ -126,6 +133,7 @@ export function VoiceRoom({ serverId, channelId }: { serverId: string; channelId
       screenTrackRef.current = null;
       audioRef.current.forEach((audio) => audio.pause());
       audioRef.current.clear();
+      setRemoteStreams(new Map());
       setParticipants([]);
     };
   }, [joined, connected, serverId, channelId, sendVoicePresence]);
@@ -233,6 +241,24 @@ export function VoiceRoom({ serverId, channelId }: { serverId: string; channelId
         <strong>{joined ? "Você está na sala" : "Áudio entre membros"}</strong>
         {joined && <span>{participants.length + 1} participante(s) conectado(s)</span>}
       </div>
+      {remoteStreams.size > 0 && (
+        <div className="voice-room-video-grid" aria-label="Vídeo dos participantes">
+          {Array.from(remoteStreams.entries()).map(([userId, stream]) => (
+            <video
+              key={userId}
+              autoPlay
+              playsInline
+              ref={(element) => {
+                if (element && element.srcObject !== stream) {
+                  element.srcObject = stream;
+                  void element.play().catch(() => {});
+                }
+              }}
+              className="voice-room-video"
+            />
+          ))}
+        </div>
+      )}
       <button type="button" onClick={() => void toggle()} className="voice-room-button">
         {joined ? "Sair da sala" : "Entrar na voz"}
       </button>
