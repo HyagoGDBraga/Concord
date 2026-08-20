@@ -116,7 +116,7 @@ interface RealtimeState {
   sendVoiceSignal: (serverId: string, channelId: string, targetUserId: string,
                     type: SignalType, payload: unknown) => void;
   onlineUserIds: Set<string>;
-  voiceActiveChannels: Set<string>;
+  voiceParticipantsByChannel: Map<string, Set<string>>;
 }
 
 const RealtimeContext = createContext<RealtimeState | null>(null);
@@ -130,7 +130,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const { user } = useSession();
   const [connected, setConnected] = useState(false);
   const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
-  const [voiceActiveChannels, setVoiceActiveChannels] = useState<Set<string>>(new Set());
+  const [voiceParticipantsByChannel, setVoiceParticipantsByChannel] = useState<Map<string, Set<string>>>(new Map());
 
   const clientRef = useRef<Client | null>(null);
   // Ouvintes fora do estado: mudam a cada montagem de tela e nao devem
@@ -150,18 +150,37 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
         return next;
       });
     }
-    if (event.type === "VOICE_ROOM_STATE" || event.type === "VOICE_USER_JOINED") {
-      const payload = event.payload as { channelId: string; participantIds?: string[] };
-      if ((payload.participantIds?.length ?? 1) > 0) {
-        setVoiceActiveChannels((current) => new Set(current).add(payload.channelId));
-      }
+    if (event.type === "VOICE_ROOM_STATE") {
+      const payload = event.payload as { channelId: string; participantIds?: string[]; selfUserId?: string };
+      setVoiceParticipantsByChannel((current) => {
+        const next = new Map(current);
+        next.set(payload.channelId, new Set([
+          ...(payload.participantIds ?? []),
+          ...(payload.selfUserId ? [payload.selfUserId] : []),
+        ]));
+        return next;
+      });
+    }
+    if (event.type === "VOICE_USER_JOINED") {
+      const payload = event.payload as { channelId: string; userId: string };
+      setVoiceParticipantsByChannel((current) => {
+        const next = new Map(current);
+        next.set(payload.channelId, new Set([...(next.get(payload.channelId) ?? []), payload.userId]));
+        return next;
+      });
     }
     if (event.type === "VOICE_USER_LEFT") {
       const payload = event.payload as { channelId: string };
       // A later room-state event will restore this if other participants remain.
-      setVoiceActiveChannels((current) => {
-        const next = new Set(current);
-        next.delete(payload.channelId);
+      setVoiceParticipantsByChannel((current) => {
+        const next = new Map(current);
+        const participants = new Set(next.get(payload.channelId) ?? []);
+        participants.delete(payload.userId);
+        if (participants.size === 0) {
+          next.delete(payload.channelId);
+        } else {
+          next.set(payload.channelId, participants);
+        }
         return next;
       });
     }
@@ -281,9 +300,9 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<RealtimeState>(
     () => ({ connected, subscribe, sendTyping, sendCallSignal, sendVoicePresence,
-      sendVoiceSignal, onlineUserIds, voiceActiveChannels }),
+      sendVoiceSignal, onlineUserIds, voiceParticipantsByChannel }),
     [connected, subscribe, sendTyping, sendCallSignal, sendVoicePresence,
-      sendVoiceSignal, onlineUserIds, voiceActiveChannels],
+      sendVoiceSignal, onlineUserIds, voiceParticipantsByChannel],
   );
 
   return (

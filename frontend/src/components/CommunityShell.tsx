@@ -14,7 +14,7 @@ type ServerResponse = {
   name: string;
   channels: { id: string; name: string; type: string }[];
 };
-type MemberResponse = { user: { username: string; displayName: string }; role: string };
+type MemberResponse = { user: { id: string; username: string; displayName: string; avatarUrl: string | null }; role: string };
 
 const DEFAULT_COMMUNITIES: Community[] = [
   {
@@ -64,7 +64,7 @@ export function CommunityShell({
   const [modalChannelType, setModalChannelType] = useState<"TEXT" | "VOICE">("TEXT");
   const [toast, setToast] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const { voiceActiveChannels } = useRealtime();
+  const { voiceParticipantsByChannel } = useRealtime();
 
   useEffect(() => {
     let mounted = true;
@@ -292,10 +292,22 @@ export function CommunityShell({
             >
               <span className="channel-symbol">{channel.kind === "voice" ? "◖" : "#"}</span>
               <span className="channel-name">{channel.name}</span>
-              {channel.kind === "voice" && channel.id && voiceActiveChannels.has(channel.id) && (
-                <span className="voice-presence-dot" title="Pessoas na sala de voz" aria-label="Pessoas na sala de voz" />
-              )}
             </Link>
+            {channel.kind === "voice" && channel.id && (
+              <div className="voice-channel-participants" aria-label="Pessoas na sala de voz">
+                {(Array.from(voiceParticipantsByChannel.get(channel.id) ?? [])).map((participantId) => {
+                  const member = members.find((item) => item.user.id === participantId);
+                  const label = member?.user.displayName ?? member?.user.username ?? participantId.slice(0, 6);
+                  return (
+                    <span key={participantId} className="voice-channel-participant" title={label}>
+                      {member?.user.avatarUrl ? (
+                        <img src={member.user.avatarUrl} alt="" />
+                      ) : initials(label)}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
           ))}
         </div>
 

@@ -57,7 +57,8 @@ public class VoiceSignalingController {
         List<UUID> existing = room.stream().filter(id -> !id.equals(userId)).toList();
         room.add(userId);
         notifier.sendToUser(userId, RealtimeEvent.of(RealtimeEvent.VOICE_ROOM_STATE,
-                Map.of("channelId", channelId, "participantIds", existing)));
+            Map.of("channelId", channelId, "participantIds", existing,
+                "selfUserId", userId)));
         notifyOthers(room, userId, RealtimeEvent.VOICE_USER_JOINED,
                 Map.of("channelId", channelId, "userId", userId));
     }
