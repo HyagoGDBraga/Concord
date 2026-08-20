@@ -5,13 +5,13 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/apiClient";
 
-type Channel = { name: string; kind: "text" | "voice" };
+type Channel = { id?: string; name: string; kind: "text" | "voice" };
 type Community = { id?: string; name: string; channels: Channel[] };
 
 type ServerResponse = {
   id: string;
   name: string;
-  channels: { name: string; type: string }[];
+  channels: { id: string; name: string; type: string }[];
 };
 
 const DEFAULT_COMMUNITIES: Community[] = [
@@ -67,6 +67,7 @@ export function CommunityShell({
         id: server.id,
         name: server.name,
         channels: server.channels.map((channel) => ({
+          id: channel.id,
           name: channel.name,
           kind: channel.type.toLowerCase() === "voice" ? "voice" as const : "text" as const,
         })),
@@ -103,7 +104,7 @@ export function CommunityShell({
       next = [...communities, {
         id: created.id,
         name: created.name,
-        channels: created.channels.map((channel) => ({ name: channel.name, kind: "text" as const })),
+        channels: created.channels.map((channel) => ({ id: channel.id, name: channel.name, kind: "text" as const })),
       }];
     } catch {
       next = [...communities, {
@@ -124,7 +125,16 @@ export function CommunityShell({
     const channelName = name.trim();
     try {
       if (community.id) {
-        await api.post(`/servers/${community.id}/channels`, { name: channelName, type: "TEXT" });
+        const created = await api.post<{ id: string; name: string; type: string }>(
+          `/servers/${community.id}/channels`, { name: channelName, type: "TEXT" });
+        const next = communities.map((item, index) =>
+          index === activeCommunity
+            ? { ...item, channels: [...item.channels, { id: created.id, name: created.name, kind: "text" as const }] }
+            : item,
+        );
+        setCommunities(next);
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        return;
       }
     } catch {
       // O fallback local mantém a interface utilizável durante a atualização da API.
@@ -189,8 +199,10 @@ export function CommunityShell({
           {community.channels.map((channel) => (
             <Link
               key={channel.name}
-              href={channel.kind === "voice" ? "/conversations" : "/conversations"}
-              className={`channel-link ${pathname === "/conversations" && channel.name === "geral" ? "is-current" : ""}`}
+              href={community.id && channel.id
+                ? `/servers/${community.id}/channels/${channel.id}`
+                : "/conversations"}
+              className={`channel-link ${pathname.includes(channel.id ?? "__missing__") ? "is-current" : ""}`}
             >
               <span className="channel-symbol">{channel.kind === "voice" ? "◖" : "#"}</span>
               {channel.name}

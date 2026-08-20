@@ -408,6 +408,153 @@ body {
   white-space: nowrap;
 }
 
+.channel-page {
+  display: flex;
+  min-height: calc(100vh - 64px);
+  flex-direction: column;
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.channel-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid #1f2b3e;
+}
+
+.channel-page-header h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  font-size: 25px;
+}
+
+.channel-page-header p:not(.eyebrow) {
+  margin-top: 7px;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.channel-page-symbol {
+  color: #61718d;
+  font-family: var(--font-mono);
+  font-size: 24px;
+}
+
+.channel-member-count {
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.channel-message-list {
+  flex: 1;
+  padding: 28px 4px 20px;
+}
+
+.channel-message {
+  display: flex;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 5px;
+}
+
+.channel-message:hover {
+  background: #111b2a;
+}
+
+.channel-message-avatar {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  place-items: center;
+  border-radius: 50%;
+  background: #263b52;
+  color: #cce2f7;
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+
+.channel-message.is-mine .channel-message-avatar {
+  background: #41604e;
+  color: #d8f5e8;
+}
+
+.channel-message-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+}
+
+.channel-message-meta strong {
+  font-size: 13px;
+}
+
+.channel-message-meta time {
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.channel-message p {
+  margin-top: 3px;
+  color: #c0cde0;
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.channel-empty {
+  display: grid;
+  min-height: 280px;
+  place-content: center;
+  justify-items: center;
+  text-align: center;
+}
+
+.channel-empty-mark {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border-radius: 50%;
+  background: #1c2b40;
+  color: var(--color-amber);
+  font-family: var(--font-mono);
+  font-size: 26px;
+}
+
+.channel-empty h3 {
+  margin-top: 16px;
+  font-size: 18px;
+}
+
+.channel-empty p {
+  margin-top: 6px;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.channel-composer {
+  display: flex;
+  gap: 10px;
+  padding: 14px 0 4px;
+  border-top: 1px solid #1f2b3e;
+}
+
+.channel-composer input {
+  min-height: 44px;
+  background: #111a29;
+}
+
 @media (max-width: 760px) {
   .community-frame {
     grid-template-columns: 58px minmax(0, 1fr);
