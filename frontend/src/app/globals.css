@@ -2,8 +2,8 @@
 
 /* ---------------------------------------------------------------------------
    Tokens de design do Concord.
-  Direcao visual: sala de comunidade. Grafite quente, osso, lima acida e
-  terracota criam uma interface editorial, mais humana que um dashboard.
+  Direcao visual: sala de comunidade. Grafite quente, osso, cobre e azul
+  desaturado criam uma interface editorial, mais humana que um dashboard.
    Tailwind v4 le este bloco e gera as utilidades (bg-ink, text-mint, etc).
 --------------------------------------------------------------------------- */
 @theme {
@@ -12,9 +12,9 @@
   --color-line: #484239;
   --color-paper: #f1eadc;
   --color-muted: #a79e8d;
-  --color-amber: #d9ef59;
-  --color-mint: #80d6b6;
-  --color-coral: #ef7965;
+  --color-amber: #e0a653;
+  --color-mint: #83aebb;
+  --color-coral: #e87968;
 
   --font-sans:
     "Trebuchet MS", "Segoe UI", sans-serif;
@@ -28,8 +28,8 @@ html {
 
 body {
   background-color: var(--color-ink);
-  background-image: radial-gradient(circle at 84% 8%, #5d51221c, transparent 28rem),
-    radial-gradient(circle at 16% 92%, #254d3a16, transparent 30rem);
+  background-image: radial-gradient(circle at 84% 8%, #6b48221c, transparent 28rem),
+    radial-gradient(circle at 16% 92%, #27465a18, transparent 30rem);
   color: var(--color-paper);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
@@ -126,7 +126,7 @@ h3 {
 
 .add-orb {
   color: var(--color-mint);
-  border-color: #245444;
+  border-color: #41606b;
   font-size: 22px;
 }
 
@@ -330,7 +330,7 @@ h3 {
   place-items: center;
   border-radius: 50%;
   background: #275064;
-  color: #d9fbef;
+  color: #dcecf1;
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 700;
@@ -399,7 +399,7 @@ h3 {
   height: 8px;
   border-radius: 50%;
   background: var(--color-mint);
-  box-shadow: 0 0 0 4px #57cfa11a;
+  box-shadow: 0 0 0 4px #83aebb1a;
 }
 
 .home-grid {
@@ -767,7 +767,7 @@ h3 {
 }
 
 .community-orb.is-active {
-  box-shadow: 0 0 0 3px #d9ef5938;
+  box-shadow: 0 0 0 3px #e0a65338;
 }
 
 .channel-sidebar {
