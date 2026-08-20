@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import app.concord.user.UserDtos;
 
 public final class ServerDtos {
 
@@ -39,6 +40,21 @@ public final class ServerDtos {
         static ServerResponse from(Server server, List<Channel> channels) {
             return new ServerResponse(server.getId(), server.getName(), server.getOwnerId(),
                     server.getCreatedAt(), channels.stream().map(ChannelResponse::from).toList());
+        }
+    }
+
+    public record AddMemberRequest(
+            @NotBlank(message = "Informe o username")
+            @Size(max = 20)
+            String username
+    ) {
+    }
+
+    public record MemberResponse(UserDtos.PublicUserResponse user, String role,
+                                 Instant joinedAt) {
+        static MemberResponse from(ServerMember member, app.concord.user.User user) {
+            return new MemberResponse(UserDtos.PublicUserResponse.from(user),
+                    member.getRole(), member.getCreatedAt());
         }
     }
 }

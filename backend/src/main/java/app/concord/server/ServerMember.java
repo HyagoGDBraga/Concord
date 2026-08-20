@@ -50,4 +50,8 @@ public class ServerMember {
     public String getRole() {
         return role;
     }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
 }

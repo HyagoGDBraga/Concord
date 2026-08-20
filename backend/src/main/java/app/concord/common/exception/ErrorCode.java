@@ -58,6 +58,8 @@ public enum ErrorCode {
     SERVER_NOT_FOUND(HttpStatus.NOT_FOUND, "Servidor não encontrado"),
     CHANNEL_NOT_FOUND(HttpStatus.NOT_FOUND, "Canal não encontrado"),
     CHANNEL_NAME_TAKEN(HttpStatus.CONFLICT, "Já existe um canal com esse nome"),
+    MEMBER_ALREADY_EXISTS(HttpStatus.CONFLICT, "Este usuário já é membro do servidor"),
+    CANNOT_REMOVE_OWNER(HttpStatus.CONFLICT, "O proprietário não pode ser removido"),
 
     // --- chamadas
     CALL_NOT_FOUND(HttpStatus.NOT_FOUND, "Chamada não encontrada"),

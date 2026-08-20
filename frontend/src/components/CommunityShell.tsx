@@ -13,6 +13,7 @@ type ServerResponse = {
   name: string;
   channels: { id: string; name: string; type: string }[];
 };
+type MemberResponse = { user: { username: string; displayName: string }; role: string };
 
 const DEFAULT_COMMUNITIES: Community[] = [
   {
@@ -56,6 +57,7 @@ export function CommunityShell({
   const [communities, setCommunities] = useState(DEFAULT_COMMUNITIES);
   const [activeCommunity, setActiveCommunity] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [members, setMembers] = useState<MemberResponse[]>([]);
 
   useEffect(() => {
     let mounted = true;
@@ -150,6 +152,34 @@ export function CommunityShell({
 
   const community = communities[activeCommunity] ?? communities[0];
 
+  useEffect(() => {
+    if (!community?.id) {
+      setMembers([]);
+      return;
+    }
+    void api.get<MemberResponse[]>(`/servers/${community.id}/members`)
+      .then(setMembers)
+      .catch(() => setMembers([]));
+  }, [community?.id]);
+
+  async function addMember() {
+    if (!community?.id) {
+      return;
+    }
+    const username = window.prompt("Username da pessoa");
+    if (!username?.trim()) {
+      return;
+    }
+    try {
+      const member = await api.post<MemberResponse>(`/servers/${community.id}/members`, {
+        username: username.trim(),
+      });
+      setMembers((current) => [...current, member]);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Não foi possível adicionar o membro");
+    }
+  }
+
   return (
     <div className="community-frame">
       <aside className="community-rail" aria-label="Servidores">
@@ -187,6 +217,16 @@ export function CommunityShell({
             <div className="server-popover">
               <strong>{community.name}</strong>
               <span>Espaço compartilhado</span>
+              <button type="button" className="popover-action" onClick={() => void addMember()}>
+                + adicionar membro
+              </button>
+              {members.length > 0 && (
+                <div className="popover-members">
+                  {members.map((member) => (
+                    <span key={member.user.username}>● {member.user.displayName}</span>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

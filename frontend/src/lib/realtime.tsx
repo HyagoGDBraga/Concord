@@ -34,6 +34,7 @@ export type RealtimeEventType =
   | "PRESENCE"
   | "CONTACT_REQUEST"
   | "CONTACT_ACCEPTED"
+  | "CHANNEL_MESSAGE_CREATED"
   | "CALL_INVITE"
   | "CALL_ACCEPTED"
   | "CALL_ENDED"

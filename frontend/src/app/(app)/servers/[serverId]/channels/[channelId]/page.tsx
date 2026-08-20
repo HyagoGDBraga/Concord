@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { api, errorMessage } from "@/lib/apiClient";
 import { useSession } from "@/lib/session";
+import { useRealtime, useRealtimeEvent } from "@/lib/realtime";
 import { Alert, Button, Input, Spinner } from "@/components/ui";
 
 type ChannelMessage = {
@@ -27,6 +28,7 @@ export default function ChannelPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const { connected } = useRealtime();
 
   useEffect(() => {
     let cancelled = false;
@@ -56,6 +58,27 @@ export default function ChannelPage() {
     };
   }, [params.channelId, params.serverId]);
 
+  useRealtimeEvent<ChannelMessage>("CHANNEL_MESSAGE_CREATED", (message) => {
+    if (message.channelId !== params.channelId) {
+      return;
+    }
+    setMessages((current) => current.some((item) => item.id === message.id)
+      ? current
+      : [...current, message]);
+  });
+
+  useEffect(() => {
+    if (connected) {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      void api.get<{ items: ChannelMessage[] }>(
+        `/channels/${params.channelId}/messages`,
+      ).then((page) => setMessages(page.items)).catch(() => {});
+    }, 8000);
+    return () => window.clearInterval(timer);
+  }, [connected, params.channelId]);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
@@ -73,7 +96,9 @@ export default function ChannelPage() {
         `/channels/${params.channelId}/messages`,
         { body, clientMessageId: crypto.randomUUID() },
       );
-      setMessages((current) => [...current, message]);
+      setMessages((current) => current.some((item) => item.id === message.id)
+        ? current
+        : [...current, message]);
       setDraft("");
     } catch (err) {
       setError(errorMessage(err));

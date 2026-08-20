@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -57,6 +58,31 @@ public class ServerController {
             @PathVariable UUID serverId,
             @Valid @RequestBody ServerDtos.CreateChannelRequest request) {
         return serverService.createChannel(me(principal), serverId, request);
+    }
+
+    @GetMapping("/{serverId}/members")
+    public List<ServerDtos.MemberResponse> members(
+            @AuthenticationPrincipal ConcordUserDetails principal,
+            @PathVariable UUID serverId) {
+        return serverService.members(me(principal), serverId);
+    }
+
+    @PostMapping("/{serverId}/members")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ServerDtos.MemberResponse addMember(
+            @AuthenticationPrincipal ConcordUserDetails principal,
+            @PathVariable UUID serverId,
+            @Valid @RequestBody ServerDtos.AddMemberRequest request) {
+        return serverService.addMember(me(principal), serverId, request);
+    }
+
+    @DeleteMapping("/{serverId}/members/{userId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void removeMember(
+            @AuthenticationPrincipal ConcordUserDetails principal,
+            @PathVariable UUID serverId,
+            @PathVariable UUID userId) {
+        serverService.removeMember(me(principal), serverId, userId);
     }
 
     private User me(ConcordUserDetails principal) {
