@@ -19,16 +19,7 @@ import { Spinner } from "@/components/ui";
  */
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <AuthenticatedShell>
-      <RealtimeProvider>
-        <CallProvider>
-          {children}
-          {/* Montado fora das paginas: uma chamada continua enquanto o usuario
-              navega, e o convite precisa aparecer esteja ele onde estiver. */}
-          <CallPanel />
-        </CallProvider>
-      </RealtimeProvider>
-    </AuthenticatedShell>
+    <AuthenticatedShell>{children}</AuthenticatedShell>
   );
 }
 
@@ -58,15 +49,22 @@ function AuthenticatedShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen">
       <ConsentBanner />
-      <CommunityShell
-        username={user.username}
-        onLogout={async () => {
-          await logout();
-          router.replace("/login");
-        }}
-      >
-        {children}
-      </CommunityShell>
+      <RealtimeProvider>
+        <CallProvider>
+          <CommunityShell
+            username={user.username}
+            onLogout={async () => {
+              await logout();
+              router.replace("/login");
+            }}
+          >
+            {children}
+          </CommunityShell>
+          {/* Montado fora das paginas: uma chamada continua enquanto o usuario
+              navega, e o convite precisa aparecer esteja ele onde estiver. */}
+          <CallPanel />
+        </CallProvider>
+      </RealtimeProvider>
     </div>
   );
 }
