@@ -7,7 +7,7 @@
  * um convite precisa surgir esteja o usuario em que tela estiver.
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCall } from "@/lib/callContext";
 import { Alert, Badge, Button } from "@/components/ui";
 
@@ -17,11 +17,11 @@ export function CallPanel() {
     call,
     localStream,
     remoteStream,
+    remoteVideoAvailable,
     micEnabled,
     cameraEnabled,
     sharingScreen,
     peerSharingScreen,
-    screenStream,
     error,
     accept,
     reject,
@@ -35,7 +35,7 @@ export function CallPanel() {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
-  const screenPreviewRef = useRef<HTMLVideoElement>(null);
+  const [remoteFullscreen, setRemoteFullscreen] = useState(false);
 
   // srcObject nao e um atributo: precisa ser atribuido pelo DOM.
   useEffect(() => {
@@ -44,15 +44,10 @@ export function CallPanel() {
     }
   }, [localStream]);
 
-  useEffect(() => {
-    if (screenPreviewRef.current) {
-      screenPreviewRef.current.srcObject = screenStream;
-    }
-  }, [screenStream]);
-
   // O mesmo fluxo remoto alimenta os dois elementos: o <video> quando ha
-  // camera, o <audio> quando a chamada e so de voz. Sem o <audio>, uma chamada
-  // de voz nao produziria som algum.
+  // camera ou compartilhamento, o <audio> quando a chamada e so de voz. O
+  // estado de video entra nas dependencias porque o elemento pode ser montado
+  // depois que uma tela e anunciada numa chamada que comecou com audio.
   useEffect(() => {
     if (remoteVideoRef.current) {
       remoteVideoRef.current.srcObject = remoteStream;
@@ -60,7 +55,30 @@ export function CallPanel() {
     if (remoteAudioRef.current) {
       remoteAudioRef.current.srcObject = remoteStream;
     }
-  }, [remoteStream]);
+    if (remoteVideoRef.current) {
+      void remoteVideoRef.current.play().catch(() => {});
+    }
+  }, [remoteStream, remoteVideoAvailable, cameraEnabled, call?.type, peerSharingScreen, sharingScreen]);
+
+  useEffect(() => {
+    const updateFullscreenState = () => {
+      setRemoteFullscreen(document.fullscreenElement === remoteVideoRef.current);
+    };
+    document.addEventListener("fullscreenchange", updateFullscreenState);
+    return () => document.removeEventListener("fullscreenchange", updateFullscreenState);
+  }, []);
+
+  async function toggleRemoteFullscreen() {
+    const video = remoteVideoRef.current;
+    if (!video) {
+      return;
+    }
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+      return;
+    }
+    await video.requestFullscreen();
+  }
 
   if (error && phase === "idle") {
     return (
@@ -81,7 +99,7 @@ export function CallPanel() {
 
   const peerName = call.peer?.displayName ?? "Contato";
   const comVideo =
-    call.type === "VIDEO" || cameraEnabled || sharingScreen || peerSharingScreen;
+    call.type === "VIDEO" || cameraEnabled || sharingScreen || peerSharingScreen || remoteVideoAvailable;
 
   /* ----------------------------------------------------- convite recebido */
 
@@ -147,6 +165,16 @@ export function CallPanel() {
               peerSharingScreen ? "object-contain" : "object-cover"
             }`}
           />
+          {(peerSharingScreen || remoteVideoAvailable) && (
+            <button
+              type="button"
+              onClick={() => void toggleRemoteFullscreen()}
+              aria-label={remoteFullscreen ? "Sair da tela cheia" : "Ver tela cheia"}
+              className="absolute right-2 top-2 rounded bg-ink/80 px-3 py-2 text-xs text-white hover:bg-ink"
+            >
+              {remoteFullscreen ? "Sair da tela cheia" : "Tela cheia"}
+            </button>
+          )}
           <video
             ref={localVideoRef}
             autoPlay
@@ -162,13 +190,6 @@ export function CallPanel() {
           <p className="mb-1 font-mono text-[11px] uppercase tracking-widest text-mint">
             Voce esta compartilhando
           </p>
-          <video
-            ref={screenPreviewRef}
-            autoPlay
-            playsInline
-            muted
-            className="w-full rounded border border-mint/40 bg-ink object-contain"
-          />
         </div>
       )}
 

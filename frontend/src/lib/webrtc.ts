@@ -59,6 +59,7 @@ export class PeerConnection {
   private readonly pc: RTCPeerConnection;
   private readonly pendingCandidates: RTCIceCandidateInit[] = [];
   private remoteDescriptionSet = false;
+  private readonly remoteStream = new MediaStream();
   private localStream: MediaStream | null = null;
   private screenTrack: MediaStreamTrack | null = null;
   /** Trilha da camera guardada durante o compartilhamento, para ser restaurada. */
@@ -82,9 +83,10 @@ export class PeerConnection {
     };
 
     this.pc.ontrack = (event) => {
-      if (event.streams[0]) {
-        callbacks.onRemoteStream(event.streams[0]);
+      if (!this.remoteStream.getTracks().some((track) => track.id === event.track.id)) {
+        this.remoteStream.addTrack(event.track);
       }
+      callbacks.onRemoteStream(this.remoteStream);
     };
 
     this.pc.onconnectionstatechange = () => {

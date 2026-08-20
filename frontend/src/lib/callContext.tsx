@@ -39,6 +39,7 @@ interface CallState {
   call: CallInfo | null;
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
+  remoteVideoAvailable: boolean;
   micEnabled: boolean;
   cameraEnabled: boolean;
   /** Este lado esta compartilhando a tela. */
@@ -68,6 +69,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const [call, setCall] = useState<CallInfo | null>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [remoteVideoAvailable, setRemoteVideoAvailable] = useState(false);
   const [micEnabled, setMicEnabled] = useState(true);
   const [cameraEnabled, setCameraEnabled] = useState(false);
   const [sharingScreen, setSharingScreen] = useState(false);
@@ -87,6 +89,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     peerRef.current = null;
     setLocalStream(null);
     setRemoteStream(null);
+    setRemoteVideoAvailable(false);
     setPhase("idle");
     setCall(null);
     setMicEnabled(true);
@@ -107,6 +110,11 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           sendCallSignal(callId, "ICE_CANDIDATE", candidate),
         onRemoteStream: (stream) => {
           setRemoteStream(stream);
+          const hasVideo = stream.getVideoTracks().length > 0;
+          setRemoteVideoAvailable(hasVideo);
+          if (hasVideo && callRef.current?.type === "AUDIO") {
+            setPeerSharingScreen(true);
+          }
           setPhase("active");
         },
         onScreenShareEnded: () => {
@@ -376,6 +384,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       call,
       localStream,
       remoteStream,
+      remoteVideoAvailable,
       micEnabled,
       cameraEnabled,
       sharingScreen,
@@ -391,7 +400,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       toggleScreenShare,
       dismissError: () => setError(null),
     }),
-    [phase, call, localStream, remoteStream, micEnabled, cameraEnabled,
+    [phase, call, localStream, remoteStream, remoteVideoAvailable, micEnabled, cameraEnabled,
       sharingScreen, peerSharingScreen, screenStream, error,
       start, accept, reject, hangUp, toggleMic, toggleCamera, toggleScreenShare],
   );
