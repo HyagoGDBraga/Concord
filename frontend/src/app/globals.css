@@ -2,24 +2,22 @@
 
 /* ---------------------------------------------------------------------------
    Tokens de design do Concord.
-   Direcao visual: painel de instrumentos. O produto e um sistema de sinal
-   (voz, video, presenca) e a interface assume esse vocabulario — azul-marinho
-   profundo de console, ambar de indicador, tipografia monoespacada para tudo
-   que e leitura de estado.
+  Direcao visual: sala de comunidade. Grafite quente, osso, lima acida e
+  terracota criam uma interface editorial, mais humana que um dashboard.
    Tailwind v4 le este bloco e gera as utilidades (bg-ink, text-mint, etc).
 --------------------------------------------------------------------------- */
 @theme {
-  --color-ink: #0b1220;
-  --color-panel: #121c2e;
-  --color-line: #223250;
-  --color-paper: #dbe5f4;
-  --color-muted: #7b8dae;
-  --color-amber: #f2b134;
-  --color-mint: #57cfa1;
-  --color-coral: #ec6a5c;
+  --color-ink: #171512;
+  --color-panel: #24211c;
+  --color-line: #484239;
+  --color-paper: #f1eadc;
+  --color-muted: #a79e8d;
+  --color-amber: #d9ef59;
+  --color-mint: #80d6b6;
+  --color-coral: #ef7965;
 
   --font-sans:
-    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    "Trebuchet MS", "Segoe UI", sans-serif;
   --font-mono:
     ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
@@ -30,9 +28,18 @@ html {
 
 body {
   background-color: var(--color-ink);
+  background-image: radial-gradient(circle at 84% 8%, #5d51221c, transparent 28rem),
+    radial-gradient(circle at 16% 92%, #254d3a16, transparent 30rem);
   color: var(--color-paper);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  font-family: Georgia, "Times New Roman", serif;
+  letter-spacing: 0;
 }
 
 /* Foco sempre visivel — requisito de acessibilidade desde a Fase 1, nao um
@@ -671,4 +678,109 @@ body {
     background: var(--color-amber);
     opacity: 0.4;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Ajustes de personalidade da comunidade
+--------------------------------------------------------------------------- */
+.community-frame {
+  background: #171512;
+}
+
+.community-rail {
+  background: #100f0d;
+  border-right-color: #302c25;
+}
+
+.community-mark,
+.community-orb {
+  border-color: #4b4438;
+  background: #211f1a;
+}
+
+.community-mark {
+  border-radius: 50%;
+  background: var(--color-amber);
+  color: #171512;
+}
+
+.community-orb:hover,
+.community-orb.is-active,
+.community-mark:hover {
+  border-color: var(--color-amber);
+  background: #343027;
+  color: var(--color-amber);
+}
+
+.community-orb.is-active {
+  box-shadow: 0 0 0 3px #d9ef5938;
+}
+
+.channel-sidebar {
+  background: #211f1a;
+  border-right-color: #3a352c;
+}
+
+.server-heading {
+  border-bottom-color: #3a352c;
+}
+
+.server-heading h1 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 17px;
+}
+
+.server-popover {
+  border-color: #5a5143;
+  background: #302c25;
+  box-shadow: 0 16px 36px #080704b8;
+}
+
+.channel-link:hover,
+.channel-link.is-current {
+  background: #39342b;
+  color: var(--color-paper);
+}
+
+.channel-link.is-current {
+  box-shadow: inset 3px 0 0 var(--color-amber);
+}
+
+.profile-strip {
+  background: #161511;
+}
+
+.community-content {
+  background: #171512;
+}
+
+.home-intro,
+.home-bottom,
+.channel-page-header,
+.channel-composer {
+  border-color: #3a352c;
+}
+
+.home-tile {
+  border-color: #4b4438;
+  background: #24211c;
+}
+
+.home-tile:hover {
+  border-color: var(--color-amber);
+  background: #302c25;
+}
+
+.home-tile-main {
+  border-color: #687844;
+  background: linear-gradient(135deg, #293121, #24211c 72%);
+}
+
+.channel-message:hover,
+.channel-composer input {
+  background: #24211c;
+}
+
+.channel-empty-mark {
+  background: #39342b;
 }
