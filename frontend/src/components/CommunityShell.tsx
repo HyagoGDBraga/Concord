@@ -60,6 +60,7 @@ export function CommunityShell({
   const [members, setMembers] = useState<MemberResponse[]>([]);
   const [modal, setModal] = useState<"server" | "channel" | "member" | "invite" | null>(null);
   const [modalValue, setModalValue] = useState("");
+  const [modalChannelType, setModalChannelType] = useState<"TEXT" | "VOICE">("TEXT");
   const [toast, setToast] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -122,7 +123,7 @@ export function CommunityShell({
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   }
 
-  async function createChannel(name: string) {
+  async function createChannel(name: string, type: "TEXT" | "VOICE" = "TEXT") {
     if (!name.trim() || !community) {
       return;
     }
@@ -130,10 +131,10 @@ export function CommunityShell({
     try {
       if (community.id) {
         const created = await api.post<{ id: string; name: string; type: string }>(
-          `/servers/${community.id}/channels`, { name: channelName, type: "TEXT" });
+          `/servers/${community.id}/channels`, { name: channelName, type });
         const next = communities.map((item, index) =>
           index === activeCommunity
-            ? { ...item, channels: [...item.channels, { id: created.id, name: created.name, kind: "text" as const }] }
+            ? { ...item, channels: [...item.channels, { id: created.id, name: created.name, kind: type === "VOICE" ? "voice" as const : "text" as const }] }
             : item,
         );
         setCommunities(next);
@@ -145,7 +146,7 @@ export function CommunityShell({
     }
     const next = communities.map((item, index) =>
       index === activeCommunity
-        ? { ...item, channels: [...item.channels, { name: channelName, kind: "text" as const }] }
+        ? { ...item, channels: [...item.channels, { name: channelName, kind: type === "VOICE" ? "voice" as const : "text" as const }] }
         : item,
     );
     setCommunities(next);
@@ -310,8 +311,8 @@ export function CommunityShell({
             className="community-modal"
             onSubmit={(event) => {
               event.preventDefault();
-              const action = modal === "server" ? createCommunity
-                : modal === "channel" ? createChannel
+              const action = modal === "server" ? (value: string) => createCommunity(value)
+                : modal === "channel" ? (value: string) => createChannel(value, modalChannelType)
                   : modal === "member" ? addMember : createInvite;
               void action(modalValue).then(() => {
                 setModal(null);
@@ -330,6 +331,12 @@ export function CommunityShell({
               placeholder={modal === "server" ? "Nome do servidor" : modal === "channel" ? "ex.: papo-livre" : "username"}
               maxLength={80}
             />
+            {modal === "channel" && (
+              <select value={modalChannelType} onChange={(event) => setModalChannelType(event.target.value as "TEXT" | "VOICE")}>
+                <option value="TEXT">Canal de texto</option>
+                <option value="VOICE">Sala de voz</option>
+              </select>
+            )}
             <div className="modal-actions">
               <button type="button" onClick={() => setModal(null)}>Cancelar</button>
               <button type="submit" className="modal-submit">Confirmar</button>

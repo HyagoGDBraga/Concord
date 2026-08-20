@@ -130,6 +130,60 @@ h3 {
   font-size: 22px;
 }
 
+.community-modal select {
+  width: 100%;
+  min-height: 42px;
+  margin-top: 10px;
+  padding: 0 12px;
+  border: 1px solid #645744;
+  border-radius: 4px;
+  background: #171512;
+  color: var(--color-paper);
+}
+
+.voice-room {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 20px 0;
+  padding: 16px 18px;
+  border: 1px solid #5e4c36;
+  border-radius: 6px;
+  background: #302719;
+}
+
+.voice-room strong,
+.voice-room span {
+  display: block;
+}
+
+.voice-room strong {
+  margin-top: 4px;
+  font-size: 14px;
+}
+
+.voice-room span,
+.voice-room small {
+  margin-top: 4px;
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.voice-room-button {
+  padding: 10px 14px;
+  border-radius: 4px;
+  background: var(--color-amber);
+  color: #171512;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.voice-room.is-joined .voice-room-button {
+  background: #e08b67;
+}
+
 .rail-rule {
   width: 28px;
   border-top: 1px solid #28344b;

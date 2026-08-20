@@ -25,6 +25,10 @@ public record RealtimeEvent(String type, Object payload, Instant at) {
     public static final String CONTACT_REQUEST = "CONTACT_REQUEST";
     public static final String CONTACT_ACCEPTED = "CONTACT_ACCEPTED";
     public static final String CHANNEL_MESSAGE_CREATED = "CHANNEL_MESSAGE_CREATED";
+    public static final String VOICE_ROOM_STATE = "VOICE_ROOM_STATE";
+    public static final String VOICE_USER_JOINED = "VOICE_USER_JOINED";
+    public static final String VOICE_USER_LEFT = "VOICE_USER_LEFT";
+    public static final String VOICE_SIGNAL = "VOICE_SIGNAL";
 
     // --- chamadas (Fase 5)
     /** Alguém está ligando. */

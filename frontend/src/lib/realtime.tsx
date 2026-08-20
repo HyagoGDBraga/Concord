@@ -35,10 +35,14 @@ export type RealtimeEventType =
   | "CONTACT_REQUEST"
   | "CONTACT_ACCEPTED"
   | "CHANNEL_MESSAGE_CREATED"
+  | "VOICE_ROOM_STATE"
+  | "VOICE_USER_JOINED"
+  | "VOICE_USER_LEFT"
   | "CALL_INVITE"
   | "CALL_ACCEPTED"
   | "CALL_ENDED"
-  | "CALL_SIGNAL";
+  | "CALL_SIGNAL"
+  | "VOICE_SIGNAL";
 
 export interface RealtimeEvent<T = unknown> {
   type: RealtimeEventType;
@@ -108,6 +112,9 @@ interface RealtimeState {
    * segundos de cada chamada, e nada disso e gravado no servidor.
    */
   sendCallSignal: (callId: string, type: SignalType, payload: unknown) => void;
+  sendVoicePresence: (serverId: string, channelId: string, joining: boolean) => void;
+  sendVoiceSignal: (serverId: string, channelId: string, targetUserId: string,
+                    type: SignalType, payload: unknown) => void;
   onlineUserIds: Set<string>;
 }
 
@@ -145,6 +152,35 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       listener(event);
     }
   }, []);
+
+  const sendVoicePresence = useCallback(
+    (serverId: string, channelId: string, joining: boolean) => {
+      const client = clientRef.current;
+      if (!client?.connected) {
+        return;
+      }
+      client.publish({
+        destination: `/app/servers/${serverId}/channels/${channelId}/voice`,
+        body: JSON.stringify({ type: joining ? "JOIN" : "LEAVE" }),
+      });
+    },
+    [],
+  );
+
+  const sendVoiceSignal = useCallback(
+    (serverId: string, channelId: string, targetUserId: string,
+     type: SignalType, payload: unknown) => {
+      const client = clientRef.current;
+      if (!client?.connected) {
+        return;
+      }
+      client.publish({
+        destination: `/app/servers/${serverId}/channels/${channelId}/voice`,
+        body: JSON.stringify({ type: "SIGNAL", targetUserId, signalType: type, payload }),
+      });
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!user) {
@@ -227,8 +263,10 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   );
 
   const value = useMemo<RealtimeState>(
-    () => ({ connected, subscribe, sendTyping, sendCallSignal, onlineUserIds }),
-    [connected, subscribe, sendTyping, sendCallSignal, onlineUserIds],
+    () => ({ connected, subscribe, sendTyping, sendCallSignal, sendVoicePresence,
+      sendVoiceSignal, onlineUserIds }),
+    [connected, subscribe, sendTyping, sendCallSignal, sendVoicePresence,
+      sendVoiceSignal, onlineUserIds],
   );
 
   return (

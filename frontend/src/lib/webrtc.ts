@@ -110,11 +110,16 @@ export class PeerConnection {
       video: withVideo ? { width: { ideal: 1280 }, height: { ideal: 720 } } : false,
     });
 
+    this.attachLocalStream(stream);
+    return stream;
+  }
+
+  /** Reusa o mesmo microfone em várias conexoes de uma sala multiparte. */
+  attachLocalStream(stream: MediaStream): void {
     this.localStream = stream;
     for (const track of stream.getTracks()) {
       this.pc.addTrack(track, stream);
     }
-    return stream;
   }
 
   async createOffer(): Promise<RTCSessionDescriptionInit> {

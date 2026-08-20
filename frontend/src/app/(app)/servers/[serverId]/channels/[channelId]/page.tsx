@@ -6,6 +6,7 @@ import { api, errorMessage } from "@/lib/apiClient";
 import { useSession } from "@/lib/session";
 import { useRealtime, useRealtimeEvent } from "@/lib/realtime";
 import { Alert, Button, Input, Spinner } from "@/components/ui";
+import { VoiceRoom } from "@/components/VoiceRoom";
 
 type ChannelMessage = {
   id: string;
@@ -125,6 +126,10 @@ export default function ChannelPage() {
       </header>
 
       {error && <Alert tone="error">{error}</Alert>}
+
+      {channel?.type === "VOICE" && (
+        <VoiceRoom serverId={params.serverId} channelId={params.channelId} />
+      )}
 
       <div className="channel-message-list">
         {messages.length === 0 && (
