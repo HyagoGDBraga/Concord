@@ -70,3 +70,50 @@ export const messagesApi = {
     api.patch<ChatMessage>(`/messages/${messageId}`, { body }),
   remove: (messageId: string) => api.delete<void>(`/messages/${messageId}`),
 };
+
+/* ------------------------------------------------------------- servidores */
+
+/**
+ * Membro do servidor.
+ *
+ * O backend aninha o perfil em `user` (ServerDtos.MemberResponse). Eu tinha
+ * escrito uma versao achatada e o `members.get(id)` nunca casava — era por isso
+ * que a sala de voz mostrava "Membro 2b24ae" em vez do nome.
+ */
+export interface ServerMember {
+  user: {
+    id: string;
+    username: string;
+    displayName: string;
+    avatarUrl: string | null;
+    bio: string | null;
+  };
+  role: "OWNER" | "MODERATOR" | "MEMBER";
+  nickname?: string | null;
+}
+
+export interface ServerSummary {
+  id: string;
+  name: string;
+  iconUrl: string | null;
+}
+
+export interface ChannelSummary {
+  id: string;
+  name: string;
+  type: "TEXT" | "VOICE";
+}
+
+export const serversApi = {
+  list: () => api.get<ServerSummary[]>("/servers"),
+  channels: (serverId: string) =>
+    api.get<ChannelSummary[]>(`/servers/${serverId}/channels`),
+  /**
+   * Membros do servidor.
+   *
+   * A sala de voz precisa disto para mostrar NOME ao lado do avatar. Antes ela
+   * so tinha os ids que a sinalizacao entrega, e id nao diz nada a ninguem.
+   */
+  members: (serverId: string) =>
+    api.get<ServerMember[]>(`/servers/${serverId}/members`),
+};

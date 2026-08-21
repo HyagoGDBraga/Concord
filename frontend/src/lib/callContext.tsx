@@ -78,6 +78,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   const peerRef = useRef<PeerConnection | null>(null);
+  /** Garante que a limpeza de chamada orfa aconteca uma vez so. */
+  const limpezaFeitaRef = useRef(false);
+  /** Instante em que esta pagina carregou, para separar chamada velha de nova. */
+  const carregadoEmRef = useRef(Date.now());
   const callRef = useRef<CallInfo | null>(null);
   callRef.current = call;
 
@@ -108,6 +112,18 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       const peer = new PeerConnection(iceServers, {
         onIceCandidate: (candidate) =>
           sendCallSignal(callId, "ICE_CANDIDATE", candidate),
+
+        // O navegador decide quando negociar e emite a descricao pronta.
+        // Antes as chamadas privadas chamavam createOffer() na mao, enquanto o
+        // PeerConnection ja tinha migrado para negociacao automatica — as duas
+        // ofertas colidiam, a segunda falhava, e o catch ENCERRAVA a chamada.
+        // Era a causa de "desliga no instante em que o outro atende".
+        onDescription: (description) =>
+          sendCallSignal(
+            callId,
+            description.type === "offer" ? "OFFER" : "ANSWER",
+            description,
+          ),
         onRemoteStream: (stream) => {
           setRemoteStream(stream);
           const hasVideo = stream.getVideoTracks().length > 0;
@@ -242,12 +258,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       setSharingScreen(true);
       sendCallSignal(current.id, "SCREEN_SHARE", { active: true });
 
-      // So renegocia quando a chamada era de voz e nao havia trilha de video
-      // para substituir.
-      if (needsRenegotiation) {
-        const offer = await peer.createOffer();
-        sendCallSignal(current.id, "OFFER", offer);
-      }
+      // Nao ha renegociacao manual: acrescentar a trilha dispara
+      // negotiationneeded, e a oferta sai sozinha por onDescription.
+      void needsRenegotiation;
     } catch (err) {
       // Cancelar a janela de selecao do navegador nao e erro que mereca alarde.
       if (err instanceof DOMException && err.name === "AbortError") {
@@ -265,13 +278,11 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     }
     try {
       if (!peer.hasVideoTrack()) {
-        // Chamada comecou so com audio: acrescentar video exige renegociar.
+        // Chamada comecou so com audio. Acrescentar a trilha ja dispara
+        // negotiationneeded; a oferta sai por onDescription.
         const stream = await peer.addVideoTrack();
         setLocalStream(stream);
         setCameraEnabled(true);
-
-        const offer = await peer.createOffer();
-        sendCallSignal(current.id, "OFFER", offer);
         return;
       }
       setCameraEnabled((enabled) => {
@@ -304,19 +315,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     setCall(accepted);
     setPhase("connecting");
 
-    // Quem ligou e quem oferta. Fixado no servidor, elimina glare.
-    const peer = peerRef.current;
-    if (!peer || !user || accepted.callerId !== user.id) {
-      return;
-    }
-    try {
-      const offer = await peer.createOffer();
-      sendCallSignal(accepted.id, "OFFER", offer);
-    } catch (err) {
-      setError(mediaErrorMessage(err));
-      await api.post(`/calls/${accepted.id}/end`).catch(() => {});
-      teardown();
-    }
+    // Nao ha oferta manual: as trilhas foram anexadas em createPeer, o que ja
+    // disparou negotiationneeded, e a oferta saiu por onDescription no momento
+    // certo. Forcar outra aqui era o que derrubava a chamada.
   });
 
   useRealtimeEvent<CallInfo>("CALL_ENDED", (ended) => {
@@ -332,15 +333,18 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     }
     try {
       switch (signal.type) {
-        case "OFFER": {
-          await peer.setRemoteDescription(signal.payload as RTCSessionDescriptionInit);
-          const answer = await peer.createAnswer();
-          sendCallSignal(signal.callId, "ANSWER", answer);
+        case "OFFER":
+        case "ANSWER": {
+          // Um caminho so. applyRemoteDescription resolve colisao de ofertas e
+          // devolve a resposta quando houver o que responder.
+          const resposta = await peer.applyRemoteDescription(
+            signal.payload as RTCSessionDescriptionInit,
+          );
+          if (resposta) {
+            sendCallSignal(signal.callId, "ANSWER", resposta);
+          }
           break;
         }
-        case "ANSWER":
-          await peer.setRemoteDescription(signal.payload as RTCSessionDescriptionInit);
-          break;
         case "ICE_CANDIDATE":
           await peer.addIceCandidate(signal.payload as RTCIceCandidateInit);
           break;
@@ -363,18 +367,37 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     if (!user) {
       return;
     }
+    // Roda UMA VEZ por sessao. A versao anterior dependia do objeto `user`
+    // inteiro: cada atualizacao de sessao criava um objeto novo, a dependencia
+    // mudava, o efeito disparava de novo — e encerrava a chamada que tinha
+    // acabado de comecar. Era a causa de "a chamada cai no instante em que eu
+    // ligo".
+    if (limpezaFeitaRef.current) {
+      return;
+    }
+    limpezaFeitaRef.current = true;
+
     // Se o usuario recarregou a pagina no meio de uma chamada, a midia se
     // perdeu com a pagina. Encerrar e mais honesto do que exibir uma chamada
     // que nao existe mais deste lado.
+    //
+    // Mas so vale para chamada ANTERIOR a este carregamento: uma criada depois
+    // esta viva e nao deve ser tocada.
     api
       .get<CallInfo | null>("/calls/current")
       .then((current) => {
-        if (current) {
+        if (!current) {
+          return;
+        }
+        const criadaAntesDoCarregamento =
+          new Date(current.createdAt).getTime() < carregadoEmRef.current;
+        if (criadaAntesDoCarregamento) {
           void api.post(`/calls/${current.id}/end`).catch(() => {});
         }
       })
       .catch(() => {});
-  }, [user]);
+    // user?.id e nao user: o id so muda quando e outra pessoa.
+  }, [user?.id]);
 
   useEffect(() => () => peerRef.current?.close(), []);
 

@@ -22,7 +22,8 @@ public record AppProperties(
         Login login,
         Turn turn,
         Legal legal,
-        Webhook webhook
+        Webhook webhook,
+        Storage storage
 ) {
 
     public record Mail(String from, String fromName) {
@@ -73,5 +74,13 @@ public record AppProperties(
      *                    bounce. Vazio desabilita o endpoint por completo
      */
     public record Webhook(String emailSecret) {
+    }
+
+    /**
+     * @param path pasta onde os bytes dos anexos sao gravados. Em producao deve
+     *             apontar para um volume persistente — dentro do container, os
+     *             arquivos morreriam no proximo deploy
+     */
+    public record Storage(String path) {
     }
 }

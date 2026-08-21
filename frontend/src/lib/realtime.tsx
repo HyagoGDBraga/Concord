@@ -22,6 +22,7 @@ import {
   useState,
 } from "react";
 import { Client, type IMessage } from "@stomp/stompjs";
+import { api } from "./apiClient";
 import { useSession } from "./session";
 import type { ChatMessage, PublicUser } from "./types";
 
@@ -32,6 +33,7 @@ export type RealtimeEventType =
   | "MESSAGE_READ"
   | "TYPING"
   | "PRESENCE"
+  | "PRESENCE_SNAPSHOT"
   | "CONTACT_REQUEST"
   | "CONTACT_ACCEPTED"
   | "CHANNEL_MESSAGE_CREATED"
@@ -42,7 +44,9 @@ export type RealtimeEventType =
   | "CALL_ACCEPTED"
   | "CALL_ENDED"
   | "CALL_SIGNAL"
-  | "VOICE_SIGNAL";
+  | "VOICE_SIGNAL"
+  | "VOICE_USER_STATE"
+  | "SERVER_MEMBER_JOINED";
 
 export interface RealtimeEvent<T = unknown> {
   type: RealtimeEventType;
@@ -113,6 +117,9 @@ interface RealtimeState {
    */
   sendCallSignal: (callId: string, type: SignalType, payload: unknown) => void;
   sendVoicePresence: (serverId: string, channelId: string, joining: boolean) => void;
+  /** Anuncia mudo, camera e compartilhamento de tela aos demais da sala. */
+  sendVoiceState: (serverId: string, channelId: string,
+    state: { muted: boolean; camera: boolean; screen: boolean }) => void;
   sendVoiceSignal: (serverId: string, channelId: string, targetUserId: string,
                     type: SignalType, payload: unknown) => void;
   onlineUserIds: Set<string>;
@@ -138,6 +145,15 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const listenersRef = useRef<Set<Listener>>(new Set());
 
   const dispatch = useCallback((event: RealtimeEvent) => {
+    // Estado inicial: substitui o conjunto inteiro. Quem conecta primeiro
+    // nao recebe evento de transicao de ninguem, e sem isto ficaria
+    // achando que esta sozinho — o que desabilitava o botao de ligar.
+    if (event.type === "PRESENCE_SNAPSHOT") {
+      const payload = event.payload as { onlineContactIds: string[] };
+      setOnlineUserIds(new Set(payload.onlineContactIds ?? []));
+      return;
+    }
+
     if (event.type === "PRESENCE") {
       const presence = event.payload as PresenceEvent;
       setOnlineUserIds((current) => {
@@ -203,6 +219,21 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  const sendVoiceState = useCallback(
+    (serverId: string, channelId: string,
+     state: { muted: boolean; camera: boolean; screen: boolean }) => {
+      const client = clientRef.current;
+      if (!client?.connected) {
+        return;
+      }
+      client.publish({
+        destination: `/app/servers/${serverId}/channels/${channelId}/voice`,
+        body: JSON.stringify({ type: "STATE", payload: state }),
+      });
+    },
+    [],
+  );
+
   const sendVoiceSignal = useCallback(
     (serverId: string, channelId: string, targetUserId: string,
      type: SignalType, payload: unknown) => {
@@ -239,6 +270,23 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
             // Frame malformado nao deve derrubar a conexao.
           }
         });
+
+        // Estado inicial de presenca, buscado DEPOIS de assinar a fila.
+        //
+        // O servidor tambem envia um PRESENCE_SNAPSHOT quando o WebSocket abre,
+        // mas isso acontece antes de o cliente mandar o SUBSCRIBE — o evento ia
+        // para uma fila sem ninguem escutando e se perdia. Resultado: quem
+        // conectava primeiro achava que estava sozinho, o botao de ligar ficava
+        // desabilitado, e so um dos lados conseguia iniciar chamada.
+        //
+        // Aqui a ordem e garantida: assinamos e so entao perguntamos.
+        void api
+          .get<{ onlineContactIds: string[] }>("/presence")
+          .then((estado) => setOnlineUserIds(new Set(estado.onlineContactIds ?? [])))
+          .catch(() => {
+            // Sem o instantaneo, a presenca ainda chega pelos eventos de
+            // transicao — so demora mais a ficar correta.
+          });
       },
       onDisconnect: () => setConnected(false),
       onWebSocketClose: (event) => {
@@ -300,9 +348,9 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<RealtimeState>(
     () => ({ connected, subscribe, sendTyping, sendCallSignal, sendVoicePresence,
-      sendVoiceSignal, onlineUserIds, voiceParticipantsByChannel }),
+      sendVoiceState, sendVoiceSignal, onlineUserIds, voiceParticipantsByChannel }),
     [connected, subscribe, sendTyping, sendCallSignal, sendVoicePresence,
-      sendVoiceSignal, onlineUserIds, voiceParticipantsByChannel],
+      sendVoiceState, sendVoiceSignal, onlineUserIds, voiceParticipantsByChannel],
   );
 
   return (

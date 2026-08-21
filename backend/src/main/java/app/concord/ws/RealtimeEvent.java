@@ -29,6 +29,22 @@ public record RealtimeEvent(String type, Object payload, Instant at) {
     public static final String VOICE_USER_JOINED = "VOICE_USER_JOINED";
     public static final String VOICE_USER_LEFT = "VOICE_USER_LEFT";
     public static final String VOICE_SIGNAL = "VOICE_SIGNAL";
+    /**
+     * Estado de um participante da sala: mudo, camera ligada, compartilhando
+     * tela.
+     *
+     * <p>Existe porque nada disso e dedutivel do WebRTC. Uma trilha de video
+     * pode ser camera ou tela — quem recebe nao tem como saber, e sem esta
+     * informacao a interface nao consegue mostrar quem esta compartilhando.
+     *
+     * <p>Efemero: nada e persistido.
+     */
+    public static final String CHANNEL_MESSAGE_UPDATED = "CHANNEL_MESSAGE_UPDATED";
+    public static final String CHANNEL_MESSAGE_DELETED = "CHANNEL_MESSAGE_DELETED";
+    public static final String MESSAGE_MENTION = "MESSAGE_MENTION";
+    /** Estado inicial de presença, enviado a quem conecta. */
+    public static final String PRESENCE_SNAPSHOT = "PRESENCE_SNAPSHOT";
+    public static final String VOICE_USER_STATE = "VOICE_USER_STATE";
 
     // --- chamadas (Fase 5)
     /** Alguém está ligando. */

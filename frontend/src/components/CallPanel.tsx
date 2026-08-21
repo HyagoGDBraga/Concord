@@ -9,6 +9,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useCall } from "@/lib/callContext";
+import { MaximizeIcon, MinimizeIcon } from "@/components/icons";
 import { Alert, Badge, Button } from "@/components/ui";
 
 export function CallPanel() {
@@ -161,7 +162,11 @@ export function CallPanel() {
             ref={remoteVideoRef}
             autoPlay
             playsInline
-            className={`aspect-video w-full bg-ink ${
+            // Duplo clique alterna a tela cheia: e o gesto que as pessoas ja
+            // conhecem de qualquer player, e nao depende de acertar um botao
+            // pequeno sobre o video.
+            onDoubleClick={() => void toggleRemoteFullscreen()}
+            className={`aspect-video w-full cursor-pointer bg-ink ${
               peerSharingScreen ? "object-contain" : "object-cover"
             }`}
           />
@@ -169,10 +174,18 @@ export function CallPanel() {
             <button
               type="button"
               onClick={() => void toggleRemoteFullscreen()}
-              aria-label={remoteFullscreen ? "Sair da tela cheia" : "Ver tela cheia"}
-              className="absolute right-2 top-2 rounded bg-ink/80 px-3 py-2 text-xs text-white hover:bg-ink"
+              aria-label={remoteFullscreen ? "Sair da tela cheia" : "Ver em tela cheia"}
+              title={
+                remoteFullscreen
+                  ? "Sair da tela cheia (Esc)"
+                  : "Ver em tela cheia (ou dê dois cliques no vídeo)"
+              }
+              // Alvo de 44px, o piso das diretrizes de toque. O botao anterior
+              // tinha metade disso e ficava sobre a imagem, entao acertar
+              // dependia de sorte.
+              className="absolute right-2 top-2 flex h-11 w-11 items-center justify-center rounded-lg border border-white/25 bg-ink/85 text-white backdrop-blur transition hover:border-white/60 hover:bg-ink"
             >
-              {remoteFullscreen ? "Sair da tela cheia" : "Tela cheia"}
+              {remoteFullscreen ? <MinimizeIcon size={20} /> : <MaximizeIcon size={20} />}
             </button>
           )}
           <video

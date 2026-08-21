@@ -4,6 +4,15 @@
 # =============================================================================
 
 spring:
+  servlet:
+    multipart:
+      # 5 MiB por arquivo. O Spring recusa ANTES de o corpo inteiro chegar a
+      # memoria; sem este limite, um arquivo de 2 GB seria lido primeiro e
+      # rejeitado depois.
+      max-file-size: 5MB
+      max-request-size: 6MB
+      # Acima disto, o Spring grava em disco em vez de segurar na memoria.
+      file-size-threshold: 256KB
   application:
     name: concord
 
@@ -96,6 +105,12 @@ concord:
     # aceite novo. E o comportamento desejado quando o texto muda.
     terms-version: ${LEGAL_TERMS_VERSION:2026-01}
     privacy-version: ${LEGAL_PRIVACY_VERSION:2026-01}
+  storage:
+    # Pasta dos anexos. Em desenvolvimento e uma pasta local; em producao, um
+    # volume Docker — ver docker-compose. Precisa existir e ser gravavel: o
+    # FileStorage cria a pasta na inicializacao e a aplicacao NAO sobe se
+    # falhar, porque servir upload sem lugar para gravar seria pior.
+    path: ${STORAGE_PATH:/var/concord/uploads}
   webhook:
     # Segredo do webhook de bounce. Vazio DESLIGA o endpoint por completo — ele
     # nao fica aberto por esquecimento.

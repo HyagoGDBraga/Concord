@@ -49,6 +49,7 @@ public class VoiceSignalingController {
             case "JOIN" -> join(channelId, userId, room);
             case "LEAVE" -> leave(channelId, userId, room);
             case "SIGNAL" -> forward(channelId, userId, message, room);
+            case "STATE" -> broadcastState(channelId, userId, message, room);
             default -> { }
         }
     }
@@ -72,6 +73,24 @@ public class VoiceSignalingController {
         if (room.isEmpty()) {
             rooms.remove(channelId, room);
         }
+    }
+
+    /**
+     * Repassa o estado do participante (mudo, camera, tela) aos demais.
+     *
+     * <p>O payload vem do cliente e e repassado sem interpretacao — o servidor
+     * nao tem como verificar se alguem realmente esta com a camera ligada, e
+     * fingir que verifica seria pior que nao verificar. O que ele garante e a
+     * identidade: userId vem do Principal, nunca do payload.
+     */
+    private void broadcastState(UUID channelId, UUID userId, VoiceMessage message,
+                                CopyOnWriteArraySet<UUID> room) {
+        if (!room.contains(userId)) {
+            return;
+        }
+        notifyOthers(room, userId, RealtimeEvent.VOICE_USER_STATE,
+                Map.of("channelId", channelId, "userId", userId,
+                        "state", message.payload() == null ? Map.of() : message.payload()));
     }
 
     private void forward(UUID channelId, UUID userId, VoiceMessage message,

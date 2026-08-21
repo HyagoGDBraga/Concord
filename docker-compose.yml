@@ -102,6 +102,7 @@ services:
       TURN_STUN_URL: ${TURN_STUN_URL}
       TURN_URLS: ${TURN_URLS}
       TURN_SECRET: ${TURN_SECRET}
+      STORAGE_PATH: /var/concord/uploads
 
       # Documentos legais
       LEGAL_TERMS_VERSION: ${LEGAL_TERMS_VERSION}
@@ -111,6 +112,7 @@ services:
       EMAIL_WEBHOOK_SECRET: ${EMAIL_WEBHOOK_SECRET}
 
     volumes:
+      - uploads_data:/var/concord/uploads
       # Hot reload do backend.
       - ./backend/src:/build/src
 
@@ -258,6 +260,10 @@ services:
 # =============================================================================
 
 volumes:
+  # Anexos. Precisa ser volume, nao pasta do container: sem isto os arquivos
+  # morreriam no proximo deploy — e um avatar que some a cada atualizacao e
+  # pior do que nao ter avatar.
+  uploads_data:
   postgres_data:
   maven_repo:
   caddy_data:

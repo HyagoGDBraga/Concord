@@ -66,6 +66,27 @@ public class PresenceService {
         if (first) {
             broadcast(userId, true);
         }
+
+        // Instantâneo para quem acabou de chegar.
+        //
+        // Sem isto, quem conecta PRIMEIRO nunca fica sabendo de quem já estava
+        // online — não houve transição a comunicar. O resultado era assimétrico
+        // e confuso: A conseguia ligar para B, e B não conseguia ligar para A,
+        // porque para B ninguém estava online.
+        //
+        // Enviado sempre, não só na primeira sessão: uma aba nova precisa do
+        // estado tanto quanto a primeira.
+        sendSnapshot(userId);
+    }
+
+    /** Contatos aceitos que estão online agora, entregues a um usuário só. */
+    private void sendSnapshot(UUID userId) {
+        List<UUID> online = contactRepository.findAcceptedContactIds(userId).stream()
+                .filter(sessionsByUser::containsKey)
+                .toList();
+
+        notifier.sendToUser(userId, RealtimeEvent.of(RealtimeEvent.PRESENCE_SNAPSHOT,
+                new PresenceDtos.PresenceSnapshot(online)));
     }
 
     public void onDisconnect(WebSocketSession session) {
