@@ -44,9 +44,21 @@ public final class ContactDtos {
      * busca parcial permitiria varrer a base de usuários. Quem quer adicionar
      * alguém já sabe o username.
      */
+    /**
+     * Pedido de contato.
+     *
+     * <p>O campo aceita nome de usuário <b>ou</b> e-mail. Depender só do
+     * username obriga a saber a grafia exata e some quando a pessoa troca de
+     * nome; o e-mail é único e as pessoas já o trocam entre si.
+     *
+     * <p>O padrão cobre os dois formatos numa expressão só, em vez de dois
+     * campos — quem digita não deveria precisar declarar o que está digitando.
+     */
     public record CreateContactRequest(
-            @NotBlank(message = "Informe o nome de usuário")
-            @Pattern(regexp = "^[A-Za-z0-9_]{3,20}$", message = "Nome de usuário inválido")
+            @NotBlank(message = "Informe o nome de usuário ou o e-mail")
+            @Pattern(
+                    regexp = "^([A-Za-z0-9_]{3,20}|[^@\\s]+@[^@\\s]+\\.[^@\\s]+)$",
+                    message = "Informe um nome de usuário ou e-mail válido")
             String username
     ) {
     }

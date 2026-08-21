@@ -13,6 +13,8 @@ import {
 } from "@/lib/realtime";
 import { useCall } from "@/lib/callContext";
 import { useSession } from "@/lib/session";
+import { AttachmentList, AttachmentPicker } from "@/components/AttachmentPicker";
+import type { AttachmentResponse } from "@/lib/chatApi";
 import type { ChatMessage, ConversationSummary } from "@/lib/types";
 import { Alert, Badge, Button, Card, Input, Spinner } from "@/components/ui";
 
@@ -39,6 +41,7 @@ export default function ConversationPage() {
   const [olderCursor, setOlderCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [draft, setDraft] = useState("");
+  const [anexos, setAnexos] = useState<AttachmentResponse[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -206,7 +209,9 @@ export default function ConversationPage() {
   async function send(event: React.FormEvent) {
     event.preventDefault();
     const body = draft.trim();
-    if (!body) {
+    // Mensagem so com arquivo e legitima — foto sem legenda e o caso mais
+    // comum de anexo. O servidor aceita corpo vazio quando ha anexo.
+    if (!body && anexos.length === 0) {
       return;
     }
     setSending(true);
@@ -216,7 +221,9 @@ export default function ConversationPage() {
         conversationId,
         body,
         crypto.randomUUID(),
+        anexos.map((anexo) => anexo.id),
       );
+      setAnexos([]);
       setMessages((current) => mergeById(current, [created]));
       setDraft("");
       notifyTyping(false);
@@ -325,7 +332,7 @@ export default function ConversationPage() {
         </div>
       )}
 
-      <ul className="max-h-[55vh] space-y-3 overflow-y-auto pr-1">
+      <ul className="dm-message-list space-y-3 pr-1">
         {messages.map((message) => {
           const mine = message.senderId === user?.id;
           return (
@@ -341,9 +348,16 @@ export default function ConversationPage() {
                 {message.deleted ? (
                   <p className="text-sm italic text-muted">Mensagem apagada</p>
                 ) : (
-                  <p className="whitespace-pre-wrap break-words text-sm">
-                    {message.body}
-                  </p>
+                  <>
+                    {/* Corpo vazio acontece quando a mensagem e so um arquivo:
+                        o servidor exige texto, e o cliente manda um espaco. */}
+                    {message.body?.trim() && (
+                      <p className="whitespace-pre-wrap break-words text-sm">
+                        {message.body}
+                      </p>
+                    )}
+                    <AttachmentList anexos={message.attachments ?? []} />
+                  </>
                 )}
                 <p className="mt-1 flex items-center gap-2 font-mono text-[11px] text-muted">
                   {new Date(message.createdAt).toLocaleTimeString("pt-BR", {
@@ -398,6 +412,12 @@ export default function ConversationPage() {
         </div>
       ) : (
         <form onSubmit={send} className="mt-5 flex items-end gap-3">
+          <AttachmentPicker
+            destino={{ conversationId }}
+            anexos={anexos}
+            onChange={setAnexos}
+            disabled={sending}
+          />
           <div className="flex-1">
             <Input
               value={draft}

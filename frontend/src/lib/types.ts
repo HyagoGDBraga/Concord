@@ -126,6 +126,16 @@ export interface ChatMessage {
   createdAt: string;
   editedAt: string | null;
   deleted: boolean;
+  /** Arquivos anexados. Vazio na maioria das mensagens. */
+  attachments?: {
+    id: string;
+    name: string;
+    contentType: string;
+    sizeBytes: number;
+    image: boolean;
+    url: string;
+    expiresAt: string | null;
+  }[];
 }
 
 /**

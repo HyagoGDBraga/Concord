@@ -1,5 +1,7 @@
 package app.concord.message;
 
+import app.concord.attachment.Attachment;
+import app.concord.attachment.AttachmentRepository;
 import app.concord.common.exception.ApiException;
 import app.concord.common.exception.ErrorCode;
 import app.concord.common.ratelimit.RateLimiter;
@@ -16,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.List;
 import java.util.UUID;
 
@@ -40,17 +44,20 @@ public class MessageService {
     private final ContactService contactService;
     private final RateLimiter rateLimiter;
     private final RealtimeNotifier notifier;
+    private final AttachmentRepository attachmentRepository;
 
     public MessageService(MessageRepository messageRepository,
                           ConversationService conversationService,
                           ContactService contactService,
                           RateLimiter rateLimiter,
-                          RealtimeNotifier notifier) {
+                          RealtimeNotifier notifier,
+                          AttachmentRepository attachmentRepository) {
         this.messageRepository = messageRepository;
         this.conversationService = conversationService;
         this.contactService = contactService;
         this.rateLimiter = rateLimiter;
         this.notifier = notifier;
+        this.attachmentRepository = attachmentRepository;
     }
 
     /**
@@ -91,14 +98,20 @@ public class MessageService {
             throw new ApiException(ErrorCode.RATE_LIMITED);
         }
 
-        String body = request.body().trim();
-        if (body.isEmpty()) {
+        String body = request.body() == null ? "" : request.body().trim();
+
+        // Vazio só é recusado quando NÃO há anexo. Uma foto sem legenda é uma
+        // mensagem legítima; exigir texto obrigaria o cliente a inventar um,
+        // que era o espaço em branco que o @NotBlank rejeitava de volta.
+        if (body.isEmpty() && request.attachmentIds().isEmpty()) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED,
-                    "A mensagem não pode ser vazia");
+                    "Escreva uma mensagem ou anexe um arquivo");
         }
 
         Message message = messageRepository.save(
                 new Message(conversationId, me.getId(), body, request.clientMessageId()));
+
+        prenderAnexos(message, conversationId, me.getId(), request.attachmentIds());
         conversationService.touch(conversationId, message.getCreatedAt());
 
         // A entrega em tempo real vai para TODOS os participantes, inclusive
@@ -145,7 +158,7 @@ public class MessageService {
         Collections.reverse(page);
 
         return new MessageDtos.MessagePage(
-                page.stream().map(MessageDtos.MessageResponse::from).toList(),
+                comAnexos(page),
                 hasMore ? olderCursor : null,
                 latestCursor,
                 hasMore);
@@ -172,7 +185,7 @@ public class MessageService {
                 : MessageCursor.of(novas.get(novas.size() - 1)).encode();
 
         return new MessageDtos.MessagePage(
-                novas.stream().map(MessageDtos.MessageResponse::from).toList(),
+                comAnexos(novas),
                 null, latestCursor, false);
     }
 
@@ -215,6 +228,64 @@ public class MessageService {
      * porque o commit ainda não ocorreu, ou porque houve rollback e a mensagem
      * nunca existiu.
      */
+    /**
+     * Prende à mensagem os anexos que já foram enviados.
+     *
+     * <p>Três verificações, e nenhuma é redundante: o anexo precisa ser <b>de
+     * quem está enviando</b> (senão daria para roubar o arquivo de outra
+     * pessoa citando o id), precisa ser <b>desta conversa</b> (senão daria para
+     * mover um arquivo de outra conversa para cá) e precisa estar <b>solto</b>
+     * (senão o mesmo arquivo apareceria em duas mensagens).
+     */
+    private void prenderAnexos(Message message, UUID conversationId, UUID uploaderId,
+                               List<UUID> ids) {
+        if (ids.isEmpty()) {
+            return;
+        }
+        if (ids.size() > 10) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED,
+                    "No máximo 10 arquivos por mensagem");
+        }
+        for (UUID id : ids) {
+            Attachment anexo = attachmentRepository.findById(id)
+                    .filter(a -> a.getUploaderId().equals(uploaderId))
+                    .filter(a -> conversationId.equals(a.getConversationId()))
+                    .filter(Attachment::isPending)
+                    .orElseThrow(() -> new ApiException(ErrorCode.VALIDATION_FAILED,
+                            "Anexo inválido"));
+
+            anexo.attachToDirectMessage(message.getId());
+            attachmentRepository.save(anexo);
+        }
+    }
+
+    /**
+     * Converte a página em resposta, carregando os anexos numa consulta só.
+     *
+     * <p>Uma consulta por mensagem transformaria abrir uma conversa em cinquenta
+     * idas ao banco — e o caso comum é nenhuma mensagem ter anexo.
+     */
+    private List<MessageDtos.MessageResponse> comAnexos(List<Message> mensagens) {
+        if (mensagens.isEmpty()) {
+            return List.of();
+        }
+        List<UUID> ids = mensagens.stream().map(Message::getId).toList();
+
+        Map<UUID, List<app.concord.attachment.AttachmentDtos.Response>> porMensagem =
+                new HashMap<>();
+        for (Attachment anexo : attachmentRepository.findByDirectMessageIds(ids)) {
+            porMensagem
+                    .computeIfAbsent(anexo.getMessageId(), k -> new ArrayList<>())
+                    .add(app.concord.attachment.AttachmentDtos.Response.from(anexo));
+        }
+
+        return mensagens.stream()
+                .map(mensagem -> MessageDtos.MessageResponse.from(
+                        mensagem,
+                        porMensagem.getOrDefault(mensagem.getId(), List.of())))
+                .toList();
+    }
+
     private void notifyParticipants(UUID conversationId, String type, Object payload) {
         List<UUID> recipients = conversationService.participantIds(conversationId);
         AfterCommit.run(() -> notifier.send(recipients, RealtimeEvent.of(type, payload)));

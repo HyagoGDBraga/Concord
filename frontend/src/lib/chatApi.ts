@@ -55,10 +55,16 @@ export const conversationsApi = {
    * requisicao for repetida por instabilidade de rede, o backend devolve a
    * mensagem ja gravada em vez de criar outra.
    */
-  send: (conversationId: string, body: string, clientMessageId: string) =>
+  send: (
+    conversationId: string,
+    body: string,
+    clientMessageId: string,
+    attachmentIds: string[] = [],
+  ) =>
     api.post<ChatMessage>(`/conversations/${conversationId}/messages`, {
       body,
       clientMessageId,
+      attachmentIds,
     }),
 
   markRead: (conversationId: string, messageId: string) =>
@@ -69,4 +75,119 @@ export const messagesApi = {
   edit: (messageId: string, body: string) =>
     api.patch<ChatMessage>(`/messages/${messageId}`, { body }),
   remove: (messageId: string) => api.delete<void>(`/messages/${messageId}`),
+};
+
+/* ------------------------------------------------------------- servidores */
+
+/**
+ * Membro do servidor.
+ *
+ * O backend aninha o perfil em `user` (ServerDtos.MemberResponse). Eu tinha
+ * escrito uma versao achatada e o `members.get(id)` nunca casava — era por isso
+ * que a sala de voz mostrava "Membro 2b24ae" em vez do nome.
+ */
+export interface ServerMember {
+  user: {
+    id: string;
+    username: string;
+    displayName: string;
+    avatarUrl: string | null;
+    bio: string | null;
+  };
+  role: "OWNER" | "MODERATOR" | "MEMBER";
+  nickname?: string | null;
+}
+
+export interface ServerSummary {
+  id: string;
+  name: string;
+  iconUrl: string | null;
+}
+
+export interface ChannelSummary {
+  id: string;
+  name: string;
+  type: "TEXT" | "VOICE";
+}
+
+export const serversApi = {
+  list: () => api.get<ServerSummary[]>("/servers"),
+  channels: (serverId: string) =>
+    api.get<ChannelSummary[]>(`/servers/${serverId}/channels`),
+  /**
+   * Membros do servidor.
+   *
+   * A sala de voz precisa disto para mostrar NOME ao lado do avatar. Antes ela
+   * so tinha os ids que a sinalizacao entrega, e id nao diz nada a ninguem.
+   */
+  members: (serverId: string) =>
+    api.get<ServerMember[]>(`/servers/${serverId}/members`),
+};
+
+/* --------------------------------------------------------------- anexos */
+
+export interface AttachmentResponse {
+  id: string;
+  name: string;
+  contentType: string;
+  sizeBytes: number;
+  image: boolean;
+  url: string;
+  expiresAt: string | null;
+}
+
+/** Teto de 5 MB, o mesmo do servidor e do banco. */
+export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+
+export const attachmentsApi = {
+  /**
+   * Troca a foto de perfil.
+   *
+   * Usa FormData e NAO define Content-Type: o navegador precisa gerar o
+   * boundary do multipart sozinho. Definir o cabecalho na mao produz um corpo
+   * que o servidor nao consegue separar.
+   */
+  uploadAvatar: (file: File) => {
+    const dados = new FormData();
+    dados.append("file", file);
+    return api.postForm<AttachmentResponse>("/users/me/avatar", dados);
+  },
+
+  removeAvatar: () => api.delete<void>("/users/me/avatar"),
+
+  /**
+   * Envia um arquivo para uma conversa ou canal.
+   *
+   * O arquivo sobe ANTES da mensagem, num pedido separado, e devolve um id. A
+   * mensagem carrega so o id. Isso permite mostrar progresso do upload, e faz
+   * com que um erro no envio do texto nao obrigue a subir o arquivo de novo.
+   */
+  uploadMessageFile: (
+    file: File,
+    destino: { conversationId?: string; channelId?: string },
+  ) => {
+    const dados = new FormData();
+    dados.append("file", file);
+
+    const parametros = new URLSearchParams({ purpose: "MESSAGE" });
+    if (destino.conversationId) {
+      parametros.set("conversationId", destino.conversationId);
+    }
+    if (destino.channelId) {
+      parametros.set("channelId", destino.channelId);
+    }
+    return api.postForm<AttachmentResponse>(
+      `/attachments?${parametros.toString()}`,
+      dados,
+    );
+  },
+
+  uploadServerIcon: (serverId: string, file: File) => {
+    const dados = new FormData();
+    dados.append("file", file);
+    return api.postForm<AttachmentResponse>(`/servers/${serverId}/icon`, dados);
+  },
+
+  removeServerIcon: (serverId: string) =>
+    api.delete<void>(`/servers/${serverId}/icon`),
 };

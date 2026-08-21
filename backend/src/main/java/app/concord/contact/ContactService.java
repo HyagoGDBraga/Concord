@@ -56,8 +56,24 @@ public class ContactService {
      * dois se procuraram, não faz sentido exigir uma confirmação a mais.
      */
     @Transactional
-    public Contact request(User me, String username) {
-        User target = userRepository.findByUsernameIgnoreCase(username.trim())
+    /**
+     * Encontra a pessoa por nome de usuário ou e-mail.
+     *
+     * <p>A presença de "@" decide qual busca fazer. Não há tentativa dupla: um
+     * username não pode conter "@" (a validação do cadastro impede), então não
+     * existe ambiguidade a resolver.
+     */
+    private java.util.Optional<User> resolverDestinatario(String identificador) {
+        String limpo = identificador.trim();
+        if (limpo.contains("@")) {
+            return userRepository.findByEmailIgnoreCase(
+                    app.concord.common.text.EmailNormalizer.normalize(limpo));
+        }
+        return userRepository.findByUsernameIgnoreCase(limpo);
+    }
+
+    public Contact request(User me, String identificador) {
+        User target = resolverDestinatario(identificador)
                 // Mesma resposta para "não existe" e "não está ativo": um usuário
                 // desativado ou excluído não deve ser distinguível de um
                 // inexistente.

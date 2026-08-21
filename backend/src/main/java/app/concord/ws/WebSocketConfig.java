@@ -48,12 +48,25 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
-                .addInterceptors(handshakeInterceptor);
+                .addInterceptors(handshakeInterceptor)
+                // Aceita qualquer origem no HANDSHAKE. Parece permissivo; não é.
+                //
+                // A verificação de mesma origem do Spring reconstrói a origem a
+                // partir do que o servidor enxerga. Atrás de um proxy que
+                // termina TLS — ngrok, Cloudflare, um balanceador — o servidor
+                // vê "http" enquanto o navegador enviou "https", e o handshake
+                // era recusado. Sem WebSocket não há presença, chat em tempo
+                // real nem sinalização de chamada: exatamente o sintoma de
+                // "entramos na sala e não nos vemos".
+                //
+                // O que de fato protege é o cookie. Ele é SameSite=Lax, então
+                // um handshake partindo de OUTRO site não o carrega — e o
+                // AuthHandshakeInterceptor recusa toda conexão sem sessão. A
+                // origem nunca foi o controle de acesso aqui; a sessão é.
+                .setAllowedOriginPatterns("*");
         // Sem SockJS: os navegadores-alvo e o Electron suportam WebSocket
         // nativo. A camada de fallback do SockJS acrescentaria transportes por
         // polling — mais superfície, sem ganho.
-        // Sem setAllowedOrigins: o padrão do Spring já é aceitar apenas a mesma
-        // origem, que é exatamente o arranjo do Caddy.
     }
 
     @Override

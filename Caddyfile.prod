@@ -39,7 +39,9 @@
 	# protocolo sozinho.
 	handle /api/* {
 		reverse_proxy backend:8080 {
-			header_up X-Forwarded-Proto {scheme}
+			# Sem sobrescrever X-Forwarded-Proto: se houver outro proxy na
+			# frente (Cloudflare, um balanceador), o valor que chega e o
+			# esquema que o navegador usou — e e esse que importa.
 			header_up X-Real-IP {remote_host}
 
 			# Sem timeout de leitura: uma conexão WebSocket fica aberta por

@@ -35,6 +35,13 @@ export async function fetchIceConfig(): Promise<RTCIceServer[]> {
 
 export interface PeerCallbacks {
   onIceCandidate: (candidate: RTCIceCandidateInit) => void;
+  /**
+   * Emite uma descricao (oferta ou resposta) gerada pelo proprio navegador.
+   *
+   * Com negociacao perfeita, quem decide QUANDO renegociar e o navegador, pelo
+   * evento `negotiationneeded`. A aplicacao so transporta o que sair daqui.
+   */
+  onDescription?: (description: RTCSessionDescriptionInit) => void;
   onRemoteStream: (stream: MediaStream) => void;
   onStateChange: (state: RTCPeerConnectionState) => void;
   onNegotiationNeeded?: () => void;
@@ -59,14 +66,52 @@ export class PeerConnection {
   private readonly pc: RTCPeerConnection;
   private readonly pendingCandidates: RTCIceCandidateInit[] = [];
   private remoteDescriptionSet = false;
-  private readonly remoteStream = new MediaStream();
+  private remoteTracks: MediaStreamTrack[] = [];
   private localStream: MediaStream | null = null;
   private screenTrack: MediaStreamTrack | null = null;
   /** Trilha da camera guardada durante o compartilhamento, para ser restaurada. */
   private cameraTrack: MediaStreamTrack | null = null;
   private onScreenShareEnded: (() => void) | null = null;
 
-  constructor(iceServers: RTCIceServer[], callbacks: PeerCallbacks) {
+  /* ------------------------------------------------ negociacao perfeita */
+
+  /**
+   * Quem cede em caso de colisao.
+   *
+   * Quando os dois lados ofertam ao mesmo tempo (o que acontece quando duas
+   * pessoas ligam a camera no mesmo instante), alguem precisa desistir da
+   * propria oferta e aceitar a do outro. Sem isso a conexao trava em
+   * "have-local-offer" dos dois lados e nenhuma midia passa — que e
+   * exatamente o sintoma de "compartilhei e nao apareceu nada".
+   *
+   * A escolha e deterministica: quem tem o id menor e o educado. Nao pode ser
+   * aleatoria, senao os dois lados poderiam se considerar educados.
+   */
+  private readonly polite: boolean;
+
+  /** Verdadeiro enquanto este lado esta montando uma oferta. */
+  private makingOffer = false;
+
+  /**
+   * Sender de video desta conexao.
+   *
+   * Guardado em campo, e nao procurado por `track?.kind === "video"`. Depois de
+   * `replaceTrack(null)` o sender continua existindo mas com track nulo, entao
+   * a busca por kind nao o encontrava mais — e a proxima tentativa de
+   * compartilhar caia no addTrack, criando um segundo m-line de video numa
+   * conexao que ja tinha um. Era por isso que compartilhar de novo so voltava
+   * a funcionar reiniciando tudo.
+   */
+  private videoSender: RTCRtpSender | null = null;
+
+  /** Oferta descartada por colisao; os candidatos ICE dela devem ser ignorados. */
+  private ignoreOffer = false;
+
+  private readonly callbacks: PeerCallbacks;
+
+  constructor(iceServers: RTCIceServer[], callbacks: PeerCallbacks, polite = true) {
+    this.polite = polite;
+    this.callbacks = callbacks;
     this.pc = new RTCPeerConnection({
       iceServers,
       // "all" permite caminho direto quando possivel e so cai no relay se
@@ -83,19 +128,69 @@ export class PeerConnection {
     };
 
     this.pc.ontrack = (event) => {
-      if (!this.remoteStream.getTracks().some((track) => track.id === event.track.id)) {
-        this.remoteStream.addTrack(event.track);
+      if (!this.remoteTracks.some((track) => track.id === event.track.id)) {
+        this.remoteTracks.push(event.track);
       }
-      callbacks.onRemoteStream(this.remoteStream);
+
+      // Um MediaStream NOVO a cada trilha, de proposito.
+      //
+      // Reaproveitar o mesmo objeto e o que fazia o compartilhamento de tela
+      // nao aparecer: o <video> ja tinha aquele stream em srcObject, entao o
+      // React nao reatribuia nada e o elemento continuava exibindo so o audio
+      // que existia quando ele foi montado. Trocando a identidade do objeto, a
+      // atribuicao acontece e o video aparece.
+      //
+      // Trilhas que terminaram sao descartadas: quem para de compartilhar deixa
+      // uma trilha morta que manteria o elemento de video na tela, congelado.
+      this.remoteTracks = this.remoteTracks.filter(
+        (track) => track.readyState !== "ended",
+      );
+      callbacks.onRemoteStream(new MediaStream(this.remoteTracks));
     };
+
+    // Trilha remota encerrada (o outro lado parou de compartilhar): republica o
+    // stream sem ela, para o elemento de video sair da tela em vez de congelar
+    // no ultimo quadro.
+    this.pc.addEventListener("track", (event) => {
+      // "mute" e "unmute" numa trilha remota indicam parada e retomada do
+      // envio. Sem reagir a eles, a interface so descobriria a mudanca quando
+      // a trilha terminasse — e replaceTrack(null) nunca a termina.
+      const republicar = () =>
+        callbacks.onRemoteStream(new MediaStream(this.remoteTracks));
+      event.track.addEventListener("mute", republicar);
+      event.track.addEventListener("unmute", republicar);
+
+      event.track.addEventListener("ended", () => {
+        this.remoteTracks = this.remoteTracks.filter(
+          (track) => track.id !== event.track.id,
+        );
+        callbacks.onRemoteStream(new MediaStream(this.remoteTracks));
+      });
+    });
 
     this.pc.onconnectionstatechange = () => {
       callbacks.onStateChange(this.pc.connectionState);
     };
 
-    if (callbacks.onNegotiationNeeded) {
-      this.pc.onnegotiationneeded = callbacks.onNegotiationNeeded;
-    }
+    // O navegador avisa sozinho quando a sessao precisa ser renegociada —
+    // ao acrescentar uma trilha, por exemplo. Chamar createOffer na mao, como
+    // antes, corria o risco de faze-lo no estado errado; aqui isso nao
+    // acontece porque o evento so dispara quando ha o que negociar.
+    this.pc.onnegotiationneeded = async () => {
+      try {
+        this.makingOffer = true;
+        await this.pc.setLocalDescription();
+        if (this.pc.localDescription) {
+          this.callbacks.onDescription?.(this.pc.localDescription.toJSON());
+        }
+      } catch (erro) {
+        console.error("[webrtc] falha ao criar oferta", erro);
+      } finally {
+        this.makingOffer = false;
+      }
+      callbacks.onNegotiationNeeded?.();
+    };
+
     this.onScreenShareEnded = callbacks.onScreenShareEnded ?? null;
   }
 
@@ -116,24 +211,59 @@ export class PeerConnection {
 
   /** Reusa o mesmo microfone em várias conexoes de uma sala multiparte. */
   attachLocalStream(stream: MediaStream): void {
+    // Se o stream ja trouxer video, o sender correspondente precisa ser
+    // registrado aqui tambem — senao stopVideo nao teria o que remover.
     this.localStream = stream;
     for (const track of stream.getTracks()) {
-      this.pc.addTrack(track, stream);
+      const sender = this.pc.addTrack(track, stream);
+      if (track.kind === "video") {
+        this.videoSender = sender;
+      }
     }
   }
 
   attachVideoTrack(track: MediaStreamTrack, stream: MediaStream): void {
     this.localStream = stream;
-    this.pc.addTrack(track, stream);
+    // Guarda o sender devolvido: e a unica referencia confiavel a ele, porque
+    // apos replaceTrack(null) nao da mais para encontra-lo pela trilha.
+    this.videoSender = this.pc.addTrack(track, stream);
   }
 
   replaceVideoTrack(track: MediaStreamTrack | null): boolean {
-    const sender = this.pc.getSenders().find((candidate) => candidate.track?.kind === "video");
-    if (!sender) {
+    if (!this.videoSender) {
       return false;
     }
-    void sender.replaceTrack(track);
+    void this.videoSender.replaceTrack(track).catch((erro) => {
+      console.warn("[webrtc] replaceTrack falhou", erro);
+    });
     return true;
+  }
+
+  /**
+   * Encerra o envio de video de vez.
+   *
+   * `replaceTrack(null)` NAO basta: do outro lado a trilha continua viva, so
+   * que sem quadros — o navegador nao dispara `ended`, e o elemento fica
+   * exibindo um retangulo preto para sempre.
+   *
+   * `removeTrack` remove o sender, dispara `negotiationneeded` deste lado e faz
+   * a trilha terminar do outro, que e o sinal para a interface tirar o video
+   * da tela.
+   */
+  stopVideo(): void {
+    if (!this.videoSender) {
+      return;
+    }
+    try {
+      this.pc.removeTrack(this.videoSender);
+    } catch (erro) {
+      console.warn("[webrtc] removeTrack falhou", erro);
+    }
+    this.videoSender = null;
+  }
+
+  hasVideoSender(): boolean {
+    return this.videoSender !== null;
   }
 
   async createOffer(): Promise<RTCSessionDescriptionInit> {
@@ -152,16 +282,67 @@ export class PeerConnection {
     return this.pc.localDescription.toJSON();
   }
 
-  async setRemoteDescription(description: RTCSessionDescriptionInit): Promise<void> {
+  /**
+   * Aplica uma descricao recebida, resolvendo colisao quando houver.
+   *
+   * Substitui o par createOffer/createAnswer manual. A aplicacao entrega o que
+   * chegou e este metodo decide o que fazer:
+   *
+   *  - oferta recebida em estado limpo    -> responde
+   *  - oferta recebida durante a propria  -> se educado, cede e responde;
+   *    oferta (colisao)                      se nao, ignora a do outro
+   *  - resposta                           -> aplica
+   *
+   * Devolve a resposta a ser enviada, ou null quando nao ha o que responder.
+   */
+  async applyRemoteDescription(
+    description: RTCSessionDescriptionInit,
+  ): Promise<RTCSessionDescriptionInit | null> {
+    const ehOferta = description.type === "offer";
+
+    // "Pronto para receber oferta" cobre o caso de estarmos montando a nossa:
+    // o estado ainda seria "stable", mas ha uma oferta em voo.
+    const prontoParaOferta =
+      !this.makingOffer && this.pc.signalingState === "stable";
+
+    const colisao = ehOferta && !prontoParaOferta;
+
+    console.info(
+      "[webrtc] descrição recebida:", description.type,
+      "| estado:", this.pc.signalingState,
+      "| educado:", this.polite,
+      "| colisão:", colisao,
+    );
+
+    // O lado impaciente descarta a oferta do outro e mantem a sua. O educado
+    // faz o contrario. Com a regra deterministica, exatamente um dos dois cede.
+    this.ignoreOffer = !this.polite && colisao;
+    if (this.ignoreOffer) {
+      console.info("[webrtc] oferta ignorada por colisão (lado impaciente)");
+      return null;
+    }
+
     await this.pc.setRemoteDescription(new RTCSessionDescription(description));
     this.remoteDescriptionSet = true;
 
-    // Agora os candidatos que chegaram cedo demais podem ser aplicados.
+    // Candidatos que chegaram antes da descricao agora podem ser aplicados.
     for (const candidate of this.pendingCandidates.splice(0)) {
       await this.pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {
         // Candidato invalido nao derruba a chamada: os outros ainda servem.
       });
     }
+
+    if (!ehOferta) {
+      return null;
+    }
+    // setLocalDescription sem argumento cria a resposta apropriada ao estado.
+    await this.pc.setLocalDescription();
+    return this.pc.localDescription?.toJSON() ?? null;
+  }
+
+  /** Mantido para o fluxo de chamada privada, que negocia manualmente. */
+  async setRemoteDescription(description: RTCSessionDescriptionInit): Promise<void> {
+    await this.applyRemoteDescription(description);
   }
 
   async addIceCandidate(candidate: RTCIceCandidateInit): Promise<void> {
@@ -171,7 +352,13 @@ export class PeerConnection {
     }
     await this.pc
       .addIceCandidate(new RTCIceCandidate(candidate))
-      .catch(() => {});
+      .catch((erro) => {
+        // Candidatos da oferta descartada na colisao chegam depois e falham.
+        // Ignorar so nesse caso; nos demais, o erro interessa.
+        if (!this.ignoreOffer) {
+          console.warn("[webrtc] candidato ICE recusado", erro);
+        }
+      });
   }
 
   /** Liga ou desliga o microfone sem derrubar a negociacao. */
@@ -188,7 +375,14 @@ export class PeerConnection {
   }
 
   hasVideoTrack(): boolean {
-    return (this.localStream?.getVideoTracks().length ?? 0) > 0;
+    // "live" apenas: uma trilha encerrada continua listada no MediaStream ate
+    // ser removida, e conta-la faria a interface achar que ha video quando nao
+    // ha mais.
+    return (
+      this.localStream
+        ?.getVideoTracks()
+        .some((trilha) => trilha.readyState === "live") ?? false
+    );
   }
 
   /**
@@ -278,21 +472,31 @@ export class PeerConnection {
 
   /** Volta a enviar a camera, ou nada, se a chamada era so de voz. */
   async stopScreenShare(): Promise<void> {
-    if (!this.screenTrack) {
+    const tela = this.screenTrack;
+    if (!tela) {
       return;
     }
-    const sender = this.pc
-      .getSenders()
-      .find((candidate) => candidate.track === this.screenTrack);
+    this.screenTrack = null;
 
-    if (sender) {
-      // replaceTrack(null) apenas para de enviar video; a conexao e o audio
-      // continuam intactos.
-      await sender.replaceTrack(this.cameraTrack).catch(() => {});
+    if (this.cameraTrack) {
+      // Havia camera antes de compartilhar: volta para ela sem renegociar.
+      this.videoSender?.replaceTrack(this.cameraTrack).catch(() => {});
+    } else {
+      // Nao ha nada para enviar. removeTrack encerra a trilha do outro lado —
+      // replaceTrack(null) a deixaria viva e sem quadros, o que produz um
+      // retangulo preto eterno na tela de quem assiste.
+      this.stopVideo();
     }
 
-    this.screenTrack.stop();
-    this.screenTrack = null;
+    tela.stop();
+
+    // A trilha morta PRECISA sair do stream local.
+    //
+    // Sem isto, hasVideoTrack() continuava devolvendo verdadeiro e o botao de
+    // camera achava que ja havia video, entrando no caminho de "ligar/desligar"
+    // em vez do de "acrescentar". Era por isso que a camera so voltava a
+    // funcionar depois de desligar e refazer a chamada.
+    this.localStream?.removeTrack(tela);
     this.cameraTrack = null;
   }
 
@@ -302,6 +506,7 @@ export class PeerConnection {
 
   /** Encerra tudo e libera camera e microfone. */
   close(): void {
+    this.videoSender = null;
     this.screenTrack?.stop();
     this.screenTrack = null;
     this.cameraTrack = null;

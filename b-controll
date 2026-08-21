@@ -1,0 +1,9 @@
+git stash push -u -m "tudo para dev-1"
+git status
+git switch concord/dev-1
+git reset --hard main
+git stash apply stash@{0}
+git status
+git add .
+git commit -m "feat: implement community features"
+git push origin concord/dev-1

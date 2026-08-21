@@ -9,6 +9,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -24,10 +25,13 @@ import java.util.UUID;
 public class ServerController {
 
     private final ServerService serverService;
+    private final app.concord.attachment.ServerIconService serverIconService;
     private final AccountService accountService;
 
-    public ServerController(ServerService serverService, AccountService accountService) {
+    public ServerController(ServerService serverService, AccountService accountService,
+                            app.concord.attachment.ServerIconService serverIconService) {
         this.serverService = serverService;
+        this.serverIconService = serverIconService;
         this.accountService = accountService;
     }
 
@@ -98,5 +102,28 @@ public class ServerController {
 
     private User me(ConcordUserDetails principal) {
         return accountService.requireById(principal.id());
+    }
+
+    /**
+     * Troca o ícone do servidor.
+     *
+     * <p>Só dono e moderador. O ícone é a identidade visual do lugar; deixar
+     * qualquer membro trocá-lo seria o mesmo que deixar qualquer um renomear o
+     * servidor.
+     */
+    @PostMapping("/{serverId}/icon")
+    public app.concord.attachment.AttachmentDtos.Response uploadIcon(
+            @AuthenticationPrincipal ConcordUserDetails principal,
+            @PathVariable java.util.UUID serverId,
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        return serverIconService.replace(me(principal), serverId, file);
+    }
+
+    @DeleteMapping("/{serverId}/icon")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void removeIcon(
+            @AuthenticationPrincipal ConcordUserDetails principal,
+            @PathVariable java.util.UUID serverId) {
+        serverIconService.remove(me(principal), serverId);
     }
 }

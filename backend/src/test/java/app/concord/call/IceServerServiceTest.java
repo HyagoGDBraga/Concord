@@ -131,6 +131,7 @@ class IceServerServiceTest {
                 // Acrescentados na Fase 7. Irrelevantes para este teste, mas o
                 // construtor canonico do record exige todos.
                 new AppProperties.Legal("2026-01", "2026-01"),
-                new AppProperties.Webhook(""));
+                new AppProperties.Webhook(""),
+                new AppProperties.Storage(System.getProperty("java.io.tmpdir")));
     }
 }

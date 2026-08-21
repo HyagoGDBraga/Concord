@@ -24,6 +24,10 @@ public class Server {
     @Column(name = "owner_id", nullable = false)
     private UUID ownerId;
 
+    /** Caminho do anexo do icone. Nulo = a interface usa as iniciais. */
+    @Column(name = "icon_url")
+    private String iconUrl;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now();
 
@@ -49,5 +53,13 @@ public class Server {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public String getIconUrl() {
+        return iconUrl;
+    }
+
+    public void setIconUrl(String iconUrl) {
+        this.iconUrl = iconUrl;
     }
 }

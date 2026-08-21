@@ -6,6 +6,8 @@ import { useSession } from "@/lib/session";
 import { RealtimeProvider } from "@/lib/realtime";
 import { CallProvider } from "@/lib/callContext";
 import { CallPanel } from "@/components/CallPanel";
+import { VoiceChannelProvider } from "@/lib/voiceChannel";
+import { VoiceSessionProvider } from "@/lib/voiceSession";
 import { ConsentBanner } from "@/components/ConsentBanner";
 import { CommunityShell } from "@/components/CommunityShell";
 import { Spinner } from "@/components/ui";
@@ -18,9 +20,7 @@ import { Spinner } from "@/components/ui";
  * requisicao sem sessao valida. Nenhuma decisao de acesso depende deste codigo.
  */
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <AuthenticatedShell>{children}</AuthenticatedShell>
-  );
+  return <AuthenticatedShell>{children}</AuthenticatedShell>;
 }
 
 /**
@@ -51,15 +51,22 @@ function AuthenticatedShell({ children }: { children: React.ReactNode }) {
       <ConsentBanner />
       <RealtimeProvider>
         <CallProvider>
-          <CommunityShell
-            username={user.username}
-            onLogout={async () => {
-              await logout();
-              router.replace("/login");
-            }}
-          >
-            {children}
-          </CommunityShell>
+          <VoiceChannelProvider>
+            <VoiceSessionProvider>
+            <CommunityShell
+              username={user.username}
+            avatarUrl={user.avatarUrl}
+              onLogout={async () => {
+                await logout();
+                router.replace("/login");
+              }}
+            >
+              {children}
+            </CommunityShell>
+
+            </VoiceSessionProvider>
+          </VoiceChannelProvider>
+
           {/* Montado fora das paginas: uma chamada continua enquanto o usuario
               navega, e o convite precisa aparecer esteja ele onde estiver. */}
           <CallPanel />
@@ -68,4 +75,3 @@ function AuthenticatedShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
-

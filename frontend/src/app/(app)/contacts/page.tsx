@@ -84,13 +84,19 @@ export default function ContactsPage() {
           }}
         >
           <div className="flex-1">
-            <Field label="Nome de usuario">
+            <Field
+              label="Nome de usuário ou e-mail"
+              hint="Ex.: maria_silva ou maria@exemplo.com"
+            >
               <Input
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                pattern="[A-Za-z0-9_]{3,20}"
+                // O pattern aceita os dois formatos numa expressao so: quem
+                // digita nao deveria precisar declarar o que esta digitando.
+                pattern="([A-Za-z0-9_]{3,20}|[^@\s]+@[^@\s]+\.[^@\s]+)"
                 required
-                maxLength={20}
+                maxLength={120}
+                placeholder="usuário ou e-mail"
               />
             </Field>
           </div>

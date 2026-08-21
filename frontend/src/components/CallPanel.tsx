@@ -9,6 +9,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useCall } from "@/lib/callContext";
+import { MaximizeIcon, MinimizeIcon } from "@/components/icons";
 import { Alert, Badge, Button } from "@/components/ui";
 
 export function CallPanel() {
@@ -98,6 +99,33 @@ export function CallPanel() {
   }
 
   const peerName = call.peer?.displayName ?? "Contato";
+  const peerAvatar = call.peer?.avatarUrl ?? null;
+
+  /**
+   * Foto de quem esta do outro lado.
+   *
+   * Numa chamada de voz nao ha nada para olhar — sem rosto, a interface e um
+   * retangulo com um nome. A foto e o que faz parecer uma conversa com alguem.
+   */
+  function AvatarDoContato({ size = 44 }: { size?: number }) {
+    return (
+      <span
+        className="flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-elevated font-semibold"
+        style={{ width: size, height: size, fontSize: size * 0.34 }}
+      >
+        {peerAvatar ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={peerAvatar}
+            alt=""
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          peerName.slice(0, 2).toUpperCase()
+        )}
+      </span>
+    );
+  }
   const comVideo =
     call.type === "VIDEO" || cameraEnabled || sharingScreen || peerSharingScreen || remoteVideoAvailable;
 
@@ -113,7 +141,10 @@ export function CallPanel() {
         <p className="font-mono text-xs uppercase tracking-widest text-amber">
           Chamada recebida
         </p>
-        <p className="mt-2 text-lg font-semibold">{peerName}</p>
+        <div className="mt-3 flex items-center gap-3">
+          <AvatarDoContato size={56} />
+          <p className="text-lg font-semibold">{peerName}</p>
+        </div>
         <p className="mt-1 text-sm text-muted">
           {call.type === "VIDEO" ? "Video" : "Voz"}
         </p>
@@ -136,7 +167,10 @@ export function CallPanel() {
       className="fixed bottom-4 right-4 z-50 w-[22rem] rounded-md border border-line bg-panel p-5 shadow-lg"
     >
       <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold">{peerName}</p>
+        <span className="flex items-center gap-2">
+          <AvatarDoContato size={32} />
+          <span className="text-sm font-semibold">{peerName}</span>
+        </span>
         <Badge tone={phase === "active" ? "good" : "warn"}>
           {phase === "dialing"
             ? "Chamando"
@@ -152,6 +186,15 @@ export function CallPanel() {
         </p>
       )}
 
+      {/* Chamada so de voz: a foto ocupa o lugar do video. Um painel sem nada
+          para ver nao comunica que existe alguem do outro lado. */}
+      {!comVideo && phase === "active" && (
+        <div className="mt-4 flex flex-col items-center gap-2 rounded border border-line bg-ink/50 py-6">
+          <AvatarDoContato size={88} />
+          <p className="font-mono text-xs text-muted">chamada de voz</p>
+        </div>
+      )}
+
       {comVideo && (
         <div className="relative mt-4 overflow-hidden rounded border border-line bg-ink">
           {/* object-contain quando e tela: recortar as bordas de uma janela
@@ -161,7 +204,11 @@ export function CallPanel() {
             ref={remoteVideoRef}
             autoPlay
             playsInline
-            className={`aspect-video w-full bg-ink ${
+            // Duplo clique alterna a tela cheia: e o gesto que as pessoas ja
+            // conhecem de qualquer player, e nao depende de acertar um botao
+            // pequeno sobre o video.
+            onDoubleClick={() => void toggleRemoteFullscreen()}
+            className={`aspect-video w-full cursor-pointer bg-ink ${
               peerSharingScreen ? "object-contain" : "object-cover"
             }`}
           />
@@ -169,10 +216,24 @@ export function CallPanel() {
             <button
               type="button"
               onClick={() => void toggleRemoteFullscreen()}
-              aria-label={remoteFullscreen ? "Sair da tela cheia" : "Ver tela cheia"}
-              className="absolute right-2 top-2 rounded bg-ink/80 px-3 py-2 text-xs text-white hover:bg-ink"
+              aria-label={remoteFullscreen ? "Sair da tela cheia" : "Ver em tela cheia"}
+              title={
+                remoteFullscreen
+                  ? "Sair da tela cheia (Esc)"
+                  : "Ver em tela cheia (ou dê dois cliques no vídeo)"
+              }
+              // Alvo de 44px, o piso das diretrizes de toque. O botao anterior
+              // tinha metade disso e ficava sobre a imagem, entao acertar
+              // dependia de sorte.
+              // Rotulo ao lado do icone: um icone sozinho num canto escuro
+              // sobre video passa despercebido, que era a queixa de "nao tem um
+              // botao aparente pra dar tela cheia".
+              className="absolute right-2 top-2 flex h-11 items-center gap-2 rounded-lg border border-white/30 bg-ink/90 px-3 text-sm font-medium text-white shadow-lg backdrop-blur transition hover:border-white hover:bg-ink"
             >
-              {remoteFullscreen ? "Sair da tela cheia" : "Tela cheia"}
+              {remoteFullscreen ? <MinimizeIcon size={18} /> : <MaximizeIcon size={18} />}
+              <span className="hidden sm:inline">
+                {remoteFullscreen ? "Sair" : "Tela cheia"}
+              </span>
             </button>
           )}
           <video

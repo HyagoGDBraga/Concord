@@ -37,10 +37,11 @@ public final class ServerDtos {
     }
 
     public record ServerResponse(UUID id, String name, UUID ownerId, Instant createdAt,
-                                 List<ChannelResponse> channels) {
+                                 String iconUrl, List<ChannelResponse> channels) {
         static ServerResponse from(Server server, List<Channel> channels) {
             return new ServerResponse(server.getId(), server.getName(), server.getOwnerId(),
-                    server.getCreatedAt(), channels.stream().map(ChannelResponse::from).toList());
+                    server.getCreatedAt(), server.getIconUrl(),
+                    channels.stream().map(ChannelResponse::from).toList());
         }
     }
 

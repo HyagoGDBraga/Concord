@@ -21,9 +21,17 @@ public final class MessageDtos {
             UUID clientMessageId,
             Instant createdAt,
             Instant editedAt,
-            boolean deleted
+            boolean deleted,
+            /** Arquivos anexados. Vazio na maioria das mensagens. */
+            java.util.List<app.concord.attachment.AttachmentDtos.Response> attachments
     ) {
         public static MessageResponse from(Message message) {
+            return from(message, java.util.List.of());
+        }
+
+        public static MessageResponse from(
+                Message message,
+                java.util.List<app.concord.attachment.AttachmentDtos.Response> anexos) {
             return new MessageResponse(
                     message.getId(),
                     message.getConversationId(),
@@ -32,7 +40,8 @@ public final class MessageDtos {
                     message.getClientMessageId(),
                     message.getCreatedAt(),
                     message.getEditedAt(),
-                    message.isDeleted());
+                    message.isDeleted(),
+                    anexos);
         }
     }
 
@@ -56,7 +65,14 @@ public final class MessageDtos {
     }
 
     public record SendMessageRequest(
-            @NotBlank(message = "A mensagem não pode ser vazia")
+            /**
+             * Texto da mensagem. Pode vir vazio QUANDO houver anexo — mandar
+             * uma foto sem legenda é o caso mais comum de anexo.
+             *
+             * <p>Sem @NotBlank aqui: a regra "vazio só é aceito com anexo"
+             * depende de outro campo, e anotação de campo não enxerga o
+             * vizinho. A verificação fica no serviço, que tem os dois.
+             */
             @Size(max = 4000, message = "A mensagem pode ter até 4000 caracteres")
             String body,
 
@@ -66,8 +82,22 @@ public final class MessageDtos {
              * duplicá-la.
              */
             @NotNull(message = "clientMessageId é obrigatório")
-            UUID clientMessageId
+            UUID clientMessageId,
+
+            /**
+             * Anexos já enviados, a serem presos a esta mensagem.
+             *
+             * O arquivo sobe ANTES, num pedido separado, e chega aqui apenas
+             * como id. Assim a mensagem não carrega megabytes no mesmo corpo, o
+             * upload mostra progresso próprio, e um erro de envio de texto não
+             * obriga a subir o arquivo de novo.
+             */
+            java.util.List<UUID> attachmentIds
     ) {
+        /** Nunca nulo, para o serviço não precisar verificar. */
+        public java.util.List<UUID> attachmentIds() {
+            return attachmentIds == null ? java.util.List.of() : attachmentIds;
+        }
     }
 
     public record EditMessageRequest(
