@@ -1,0 +1,13 @@
+Coloque aqui o arquivo da fonte bitmap:
+
+    retro-gaming.ttf
+
+Baixe em https://www.dafont.com/retro-gaming.font (100% gratuita, por Daymarius)
+e renomeie o arquivo para exatamente "retro-gaming.ttf".
+
+Por que local e nao CDN: uma fonte servida por terceiro entrega a ele o IP de
+todo mundo que abre o Concord — exatamente o tipo de vazamento de metadado que
+a politica de privacidade diz nao existir aqui.
+
+Sem o arquivo, a interface usa a fonte monoespacada do sistema. Nada quebra:
+o visual fica menos marcante, so isso.

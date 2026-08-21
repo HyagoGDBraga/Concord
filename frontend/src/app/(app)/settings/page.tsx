@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ApiError, api, errorMessage } from "@/lib/apiClient";
 import { useSession } from "@/lib/session";
+import { useTheme } from "@/lib/theme";
+import { attachmentsApi, MAX_UPLOAD_BYTES } from "@/lib/chatApi";
 import type { Me, SessionInfo } from "@/lib/types";
 import {
   Alert,
@@ -19,6 +21,8 @@ import {
 export default function SettingsPage() {
   return (
     <div className="space-y-6">
+      <AvatarSection />
+      <AppearanceSection />
       <ProfileSection />
       <DataSection />
       <PasswordSection />
@@ -26,6 +30,202 @@ export default function SettingsPage() {
       <SessionsSection />
       <DangerSection />
     </div>
+  );
+}
+
+/* ---------------------------------------------------------------- avatar */
+
+function AvatarSection() {
+  const { user, refresh } = useSession();
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function escolher(evento: React.ChangeEvent<HTMLInputElement>) {
+    const arquivo = evento.target.files?.[0];
+    // Limpa o input: sem isso, escolher o MESMO arquivo de novo nao dispara
+    // change e a pessoa acha que o botao quebrou.
+    evento.target.value = "";
+    if (!arquivo) {
+      return;
+    }
+
+    // Verificacao no cliente e cortesia, nao seguranca — o servidor confere de
+    // novo, e por conteudo. Aqui ela evita subir 40 MB para receber erro.
+    if (arquivo.size > MAX_UPLOAD_BYTES) {
+      setErro("A imagem precisa ter no máximo 5 MB.");
+      return;
+    }
+
+    setEnviando(true);
+    setErro(null);
+    try {
+      await attachmentsApi.uploadAvatar(arquivo);
+      await refresh();
+    } catch (err) {
+      setErro(errorMessage(err));
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  async function remover() {
+    setEnviando(true);
+    setErro(null);
+    try {
+      await attachmentsApi.removeAvatar();
+      await refresh();
+    } catch (err) {
+      setErro(errorMessage(err));
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  const iniciais = (user?.displayName ?? "?").slice(0, 2).toUpperCase();
+
+  return (
+    <Card
+      title="Foto de perfil"
+      description="PNG, JPEG, GIF ou WebP, até 5 MB."
+    >
+      <div className="flex flex-wrap items-center gap-5">
+        <span className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-elevated text-lg font-bold">
+          {user?.avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={user.avatarUrl}
+              alt="Sua foto de perfil"
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            iniciais
+          )}
+        </span>
+
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              loading={enviando}
+              onClick={() => inputRef.current?.click()}
+            >
+              {user?.avatarUrl ? "Trocar foto" : "Enviar foto"}
+            </Button>
+            {user?.avatarUrl && (
+              <Button variant="secondary" loading={enviando} onClick={() => void remover()}>
+                Remover
+              </Button>
+            )}
+          </div>
+          <p className="text-xs text-muted">
+            A imagem fica visível para seus contatos e para os membros dos
+            servidores em que você está.
+          </p>
+        </div>
+
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/gif,image/webp"
+          onChange={(evento) => void escolher(evento)}
+          className="hidden"
+        />
+      </div>
+
+      {erro && (
+        <div className="mt-4">
+          <Alert tone="error">{erro}</Alert>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------- aparencia */
+
+const ROTULOS_DE_COR: Record<string, string> = {
+  ink: "Fundo do chat",
+  panel: "Barra de canais",
+  elevated: "Superfícies",
+  line: "Bordas",
+  paper: "Texto",
+  muted: "Texto secundário",
+  accent: "Destaque",
+  mint: "Sucesso / falando",
+  coral: "Erro / sair",
+};
+
+function AppearanceSection() {
+  const { theme, setTheme, palette, setPaletteColor, resetPalette } = useTheme();
+
+  const temas = [
+    { id: "classic" as const, nome: "Classic", desc: "Cinza-azul, o padrão" },
+    { id: "terminal" as const, nome: "Terminal", desc: "Bitmap sobre grafite" },
+    { id: "light" as const, nome: "Claro", desc: "Fundo claro, texto chumbo" },
+    { id: "custom" as const, nome: "Personalizado", desc: "Você escolhe as cores" },
+  ];
+
+  return (
+    <Card title="Aparência" description="A escolha fica salva neste navegador.">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {temas.map((opcao) => (
+          <button
+            key={opcao.id}
+            type="button"
+            onClick={() => setTheme(opcao.id)}
+            className={`rounded border p-4 text-left transition ${
+              theme === opcao.id
+                ? "border-amber bg-ink"
+                : "border-line bg-ink/40 hover:border-muted"
+            }`}
+          >
+            <span className="display block text-sm">{opcao.nome}</span>
+            <span className="mt-1 block text-xs text-muted">{opcao.desc}</span>
+          </button>
+        ))}
+      </div>
+
+      {theme === "custom" && (
+        <div className="mt-6 border-t border-line pt-5">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <p className="text-sm font-semibold">Suas cores</p>
+            <Button variant="secondary" onClick={resetPalette}>
+              Restaurar padrão
+            </Button>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {(Object.keys(palette) as (keyof typeof palette)[]).map((chave) => (
+              <label key={chave} className="flex items-center gap-3">
+                {/* input type=color e o seletor nativo do sistema: nao precisa
+                    de biblioteca e ja e acessivel por teclado. */}
+                <input
+                  type="color"
+                  value={palette[chave]}
+                  onChange={(evento) => setPaletteColor(chave, evento.target.value)}
+                  className="h-9 w-12 cursor-pointer rounded border border-line bg-transparent"
+                  aria-label={ROTULOS_DE_COR[chave] ?? chave}
+                />
+                <span className="flex min-w-0 flex-col">
+                  <span className="truncate text-sm">
+                    {ROTULOS_DE_COR[chave] ?? chave}
+                  </span>
+                  <span className="font-mono text-[11px] text-muted">
+                    {palette[chave]}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </div>
+
+          <p className="mt-4 text-xs text-muted">
+            As cores valem só neste navegador e mudam na hora. Se algo ficar
+            ilegível, use &quot;Restaurar padrão&quot;.
+          </p>
+        </div>
+      )}
+    </Card>
   );
 }
 

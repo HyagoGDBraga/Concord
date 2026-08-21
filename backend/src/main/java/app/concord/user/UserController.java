@@ -7,6 +7,8 @@ import app.concord.audit.AuditOutcome;
 import app.concord.audit.AuditService;
 import app.concord.common.exception.ApiException;
 import app.concord.common.exception.ErrorCode;
+import app.concord.attachment.AttachmentDtos;
+import app.concord.attachment.AvatarService;
 import app.concord.common.ratelimit.RateLimiter;
 import app.concord.privacy.DataExportService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -48,15 +51,36 @@ public class UserController {
     private final AuditService auditService;
     private final DataExportService dataExportService;
     private final RateLimiter rateLimiter;
+    private final AvatarService avatarService;
 
     public UserController(AccountService accountService, SessionService sessionService,
                           AuditService auditService, DataExportService dataExportService,
-                          RateLimiter rateLimiter) {
+                          RateLimiter rateLimiter, AvatarService avatarService) {
         this.accountService = accountService;
         this.sessionService = sessionService;
         this.auditService = auditService;
         this.dataExportService = dataExportService;
         this.rateLimiter = rateLimiter;
+        this.avatarService = avatarService;
+    }
+
+    /**
+     * Troca a foto de perfil.
+     *
+     * <p>Aceita só imagem — a validação é por conteúdo, não por extensão nem
+     * pelo Content-Type enviado, que vêm do cliente e são forjáveis.
+     */
+    @PostMapping("/avatar")
+    public AttachmentDtos.Response uploadAvatar(
+            @AuthenticationPrincipal ConcordUserDetails principal,
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        return avatarService.replace(accountService.requireById(principal.id()), file);
+    }
+
+    @DeleteMapping("/avatar")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void removeAvatar(@AuthenticationPrincipal ConcordUserDetails principal) {
+        avatarService.remove(accountService.requireById(principal.id()));
     }
 
     /**

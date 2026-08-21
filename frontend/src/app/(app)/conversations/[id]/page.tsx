@@ -325,7 +325,7 @@ export default function ConversationPage() {
         </div>
       )}
 
-      <ul className="max-h-[55vh] space-y-3 overflow-y-auto pr-1">
+      <ul className="dm-message-list space-y-3 pr-1">
         {messages.map((message) => {
           const mine = message.senderId === user?.id;
           return (

@@ -27,7 +27,17 @@
 	# permite REST e WebSocket reconhecerem a mesma identidade.
 	handle /api/* {
 		reverse_proxy backend:8080 {
-			header_up X-Forwarded-Proto {scheme}
+			# X-Forwarded-Proto NAO e sobrescrito aqui.
+			#
+			# O Caddy ja repassa o valor recebido quando ele existe. Atras de
+			# outro proxy que termina TLS — ngrok, Cloudflare, um balanceador —
+			# o cabecalho chega valendo "https", e e esse valor que interessa:
+			# ele diz o esquema que o NAVEGADOR usou, nao o deste salto.
+			#
+			# Forcar {scheme} escrevia "http" e fazia o Spring reconstruir a
+			# origem como http://dominio, comparando-a com o Origin
+			# https://dominio do navegador. Origens diferentes, handshake do
+			# WebSocket recusado, nada em tempo real.
 			header_up X-Real-IP {remote_host}
 		}
 	}

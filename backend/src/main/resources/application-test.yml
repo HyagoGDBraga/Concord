@@ -42,6 +42,8 @@ concord:
   legal:
     terms-version: "2026-01"
     privacy-version: "2026-01"
+  storage:
+    path: ${java.io.tmpdir}/concord-test-uploads
   webhook:
     email-secret: "segredo-de-webhook-para-teste"
 

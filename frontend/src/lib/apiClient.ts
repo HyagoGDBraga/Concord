@@ -82,6 +82,17 @@ async function ensureCsrfToken(): Promise<string | null> {
   return readCsrfToken();
 }
 
+/** FormData vai como esta; o resto vira JSON. */
+function serializar(body: unknown): BodyInit | undefined {
+  if (body === undefined) {
+    return undefined;
+  }
+  if (body instanceof FormData) {
+    return body;
+  }
+  return JSON.stringify(body);
+}
+
 async function request<T>(
   method: string,
   path: string,
@@ -89,7 +100,12 @@ async function request<T>(
 ): Promise<T> {
   const headers: Record<string, string> = { Accept: "application/json" };
 
-  if (body !== undefined) {
+  // FormData fica de fora: o navegador precisa gerar o boundary do multipart
+  // sozinho, e definir o cabecalho na mao produz um corpo que o servidor nao
+  // consegue separar em partes.
+  const ehFormulario = body instanceof FormData;
+
+  if (body !== undefined && !ehFormulario) {
     headers["Content-Type"] = "application/json";
   }
   if (MUTATING_METHODS.has(method)) {
@@ -104,7 +120,7 @@ async function request<T>(
       headers,
       // Mesma origem via Caddy: o cookie de sessao viaja sem CORS.
       credentials: "same-origin",
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: serializar(body),
     });
 
   // Um cookie CSRF antigo pode sobreviver a reinícios do ambiente. Renova-o
@@ -122,7 +138,7 @@ async function request<T>(
       method,
       headers: retryHeaders,
       credentials: "same-origin",
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: serializar(body),
     });
   }
 
@@ -140,6 +156,16 @@ async function request<T>(
 }
 
 export const api = {
+  /**
+   * Envio de formulario multipart (upload de arquivo).
+   *
+   * Nao define Content-Type de proposito: o navegador precisa gerar o boundary
+   * do multipart. Definir o cabecalho na mao quebra a separacao das partes no
+   * servidor. O token CSRF continua indo no header, como nas demais mutacoes.
+   */
+  postForm: <T>(path: string, body: FormData): Promise<T> =>
+    request<T>("POST", path, body),
+
   get: <T>(path: string) => request<T>("GET", path),
   post: <T>(path: string, body?: unknown) => request<T>("POST", path, body),
   patch: <T>(path: string, body?: unknown) => request<T>("PATCH", path, body),

@@ -5,6 +5,7 @@ import app.concord.common.request.RequestIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
@@ -12,6 +13,7 @@ import org.springframework.security.web.csrf.CsrfException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.LinkedHashMap;
@@ -83,6 +85,24 @@ public class GlobalExceptionHandler {
         ErrorCode code = admin ? ErrorCode.NOT_FOUND : ErrorCode.ACCESS_DENIED;
         return ResponseEntity.status(code.status())
                 .body(ErrorResponse.of(code.name(), code.defaultMessage(),
+                        RequestIdFilter.current(request)));
+    }
+
+    /**
+     * Arquivo maior que o limite do multipart.
+     *
+     * <p>O Spring aborta a leitura ANTES de o controller ser chamado — e por
+     * isso a validação de tamanho que existe no serviço nunca chega a rodar
+     * neste caso. Sem este handler, o usuário recebia 500 "Erro interno" ao
+     * tentar enviar um arquivo grande, que é justamente o erro mais comum e o
+     * mais fácil de explicar.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleUploadTooLarge(
+            MaxUploadSizeExceededException ex, HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(ErrorResponse.of(ErrorCode.VALIDATION_FAILED.name(),
+                        "O arquivo excede o limite de 5 MB",
                         RequestIdFilter.current(request)));
     }
 
